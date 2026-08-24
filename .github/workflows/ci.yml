@@ -15,11 +15,11 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run pytest --cov=chips_skills --cov-report=term-missing --cov-report=xml
-      - uses: codecov/codecov-action@v4
+      - run: pytest --cov --cov-branch --cov-report=xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          files: coverage.xml
-          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     runs-on: ubuntu-latest
