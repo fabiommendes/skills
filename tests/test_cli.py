@@ -49,6 +49,13 @@ def test_add_defaults_to_claude_when_no_flag_given(project_dir: Path) -> None:
     assert (project_dir / ".claude" / "skills" / "python-functions").is_dir()
 
 
+def test_add_redirects_abbreviated_skill_name(project_dir: Path) -> None:
+    result = runner.invoke(cli.app, ["add", "python/modules", "--claude"])
+
+    assert result.exit_code == 0
+    assert (project_dir / ".claude" / "skills" / "python-modules").is_dir()
+
+
 def test_add_unknown_skill_fails(project_dir: Path) -> None:
     result = runner.invoke(cli.app, ["add", "python/does-not-exist"])
 
@@ -101,6 +108,17 @@ def test_edit_opens_editor_for_existing_skill(monkeypatch: pytest.MonkeyPatch) -
     args = run_mock.call_args.args[0]
     assert args[0] == "my-editor"
     assert args[1].endswith("python-functions/SKILL.md")
+
+
+def test_edit_redirects_abbreviated_skill_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    run_mock = MagicMock()
+    monkeypatch.setattr(cli.subprocess, "run", run_mock)
+
+    result = runner.invoke(cli.app, ["edit", "python/modules"])
+
+    assert result.exit_code == 0
+    args = run_mock.call_args.args[0]
+    assert args[1].endswith("python-modules/SKILL.md")
 
 
 def test_edit_unknown_skill_fails(monkeypatch: pytest.MonkeyPatch) -> None:

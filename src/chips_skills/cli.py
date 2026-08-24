@@ -74,9 +74,10 @@ def add(
     model = get_model(locals())
     repo = get_repo()
 
-    _, _, name = skill.partition("/")
+    fullname = repo._resolve_fullname(skill)
+    _, _, name = fullname.partition("/")
     try:
-        loader = repo.get_skill(skill)
+        loader = repo.get_skill(fullname)
     except ValueError as exc:
         stderr.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -90,7 +91,7 @@ def add(
 
     target_dir.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_dir, target_dir)
-    stdout.print(f"Installed '{skill}' to {target_dir}")
+    stdout.print(f"Installed '{fullname}' to {target_dir}")
 
 
 @app.command()
@@ -106,9 +107,10 @@ def edit(
     get_model(locals())
     repo = get_repo()
 
-    _, _, name = skill.partition("/")
+    fullname = repo._resolve_fullname(skill)
+    _, _, name = fullname.partition("/")
     try:
-        loader = repo.get_skill(skill)
+        loader = repo.get_skill(fullname)
     except ValueError as exc:
         stderr.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc

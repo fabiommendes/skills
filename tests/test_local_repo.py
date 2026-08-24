@@ -7,7 +7,9 @@ import pytest
 from chips_skills.local_repo import Skill, SkillLoader, SkillRepo
 
 
-def write_skill(dir_: Path, category: str, name: str, description: str = "desc") -> Path:
+def write_skill(
+    dir_: Path, category: str, name: str, description: str = "desc"
+) -> Path:
     skill_dir = dir_ / category / name
     skill_dir.mkdir(parents=True, exist_ok=True)
     skill_md = skill_dir / "SKILL.md"
@@ -19,7 +21,9 @@ def write_skill(dir_: Path, category: str, name: str, description: str = "desc")
 
 class TestSkill:
     def test_render_round_trips_through_load_skill(self, tmp_path: Path) -> None:
-        skill = Skill(name="foo", description="does foo things", source="# foo\n\nBody.")
+        skill = Skill(
+            name="foo", description="does foo things", source="# foo\n\nBody."
+        )
         category_dir = tmp_path / "cat"
         skill_dir = category_dir / "foo"
         skill_dir.mkdir(parents=True)
@@ -83,6 +87,54 @@ class TestSkillRepo:
         with pytest.raises(ValueError):
             repo.get_skill("python/does-not-exist")
 
+    def test_get_skill_matches_category_prefixed_abbreviation(
+        self, tmp_path: Path
+    ) -> None:
+        repo = SkillRepo(root=tmp_path)
+        repo.add_skill(
+            "python/python-modules",
+            Skill(name="python-modules", description="d", source="s"),
+        )
+
+        loader = repo.get_skill("python/modules")
+
+        assert loader.load_skill("python-modules").name == "python-modules"
+
+    def test_resolve_fullname_prefers_exact_match(self, tmp_path: Path) -> None:
+        repo = SkillRepo(root=tmp_path)
+        repo.add_skill(
+            "python/modules", Skill(name="modules", description="d", source="s")
+        )
+        repo.add_skill(
+            "python/python-modules",
+            Skill(name="python-modules", description="d", source="s"),
+        )
+
+        assert repo._resolve_fullname("python/modules") == "python/modules"
+
+    def test_resolve_fullname_abbreviated_match(self, tmp_path: Path) -> None:
+        repo = SkillRepo(root=tmp_path)
+        repo.add_skill(
+            "python/python-modules",
+            Skill(name="python-modules", description="d", source="s"),
+        )
+
+        assert repo._resolve_fullname("python/modules") == "python/python-modules"
+
+    def test_resolve_fullname_returns_unchanged_when_no_match(
+        self, tmp_path: Path
+    ) -> None:
+        repo = SkillRepo(root=tmp_path)
+        assert (
+            repo._resolve_fullname("python/does-not-exist") == "python/does-not-exist"
+        )
+
+    def test_resolve_fullname_returns_unchanged_without_slash(
+        self, tmp_path: Path
+    ) -> None:
+        repo = SkillRepo(root=tmp_path)
+        assert repo._resolve_fullname("no-slash-here") == "no-slash-here"
+
     def test_add_skill_duplicate_raise(self, tmp_path: Path) -> None:
         repo = SkillRepo(root=tmp_path)
         skill = Skill(name="my-skill", description="d", source="body")
@@ -93,25 +145,33 @@ class TestSkillRepo:
 
     def test_add_skill_duplicate_skip_keeps_original(self, tmp_path: Path) -> None:
         repo = SkillRepo(root=tmp_path)
-        repo.add_skill("python/my-skill", Skill(name="my-skill", description="v1", source="a"))
+        repo.add_skill(
+            "python/my-skill", Skill(name="my-skill", description="v1", source="a")
+        )
         repo.add_skill(
             "python/my-skill",
             Skill(name="my-skill", description="v2", source="b"),
             duplicate="skip",
         )
 
-        assert repo.get_skill("python/my-skill").load_skill("my-skill").description == "v1"
+        assert (
+            repo.get_skill("python/my-skill").load_skill("my-skill").description == "v1"
+        )
 
     def test_add_skill_duplicate_overwrite_replaces(self, tmp_path: Path) -> None:
         repo = SkillRepo(root=tmp_path)
-        repo.add_skill("python/my-skill", Skill(name="my-skill", description="v1", source="a"))
+        repo.add_skill(
+            "python/my-skill", Skill(name="my-skill", description="v1", source="a")
+        )
         repo.add_skill(
             "python/my-skill",
             Skill(name="my-skill", description="v2", source="b"),
             duplicate="overwrite",
         )
 
-        assert repo.get_skill("python/my-skill").load_skill("my-skill").description == "v2"
+        assert (
+            repo.get_skill("python/my-skill").load_skill("my-skill").description == "v2"
+        )
 
     def test_add_skill_invalid_fullname_raises(self, tmp_path: Path) -> None:
         repo = SkillRepo(root=tmp_path)

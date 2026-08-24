@@ -59,6 +59,7 @@ class SkillRepo:
         """
         Get a skill loader by its full name.
         """
+        fullname = self._resolve_fullname(fullname)
         category, sep, name = fullname.partition("/")
         if not sep:
             msg = f"Invalid skill name: {fullname}. Expected format: 'category/name'."
@@ -104,6 +105,31 @@ class SkillRepo:
 
         skill_dir.mkdir(parents=True, exist_ok=True)
         skill_md.write_text(skill.render())
+
+    #
+    # Utility methods
+    #
+    def _resolve_fullname(self, fullname: str) -> str:
+        """
+        Resolve a possibly abbreviated skill name to its actual "category/name".
+
+        If "category/name" doesn't exist but "category/category-name" does
+        (e.g. "python/modules" for "python/python-modules"), return the
+        latter. Otherwise return fullname unchanged.
+        """
+        category, sep, name = fullname.partition("/")
+        if not sep:
+            return fullname
+
+        category_path = self.root / category
+        if (category_path / name / "SKILL.md").is_file():
+            return fullname
+
+        prefixed_name = f"{category}-{name}"
+        if (category_path / prefixed_name / "SKILL.md").is_file():
+            return f"{category}/{prefixed_name}"
+
+        return fullname
 
 
 @dataclass
