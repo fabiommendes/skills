@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 from rich.padding import Padding
@@ -11,11 +11,16 @@ from .console import stderr, stdout
 from .local_repo import DEFAULT_SKILLS_ROOT, Skill, SkillRepo
 from .models import Model
 
+__all__ = ["main", "add", "edit", "new", "list_"]
+
 app = typer.Typer()
 
 CLAUDE_OPT = Annotated[bool, typer.Option("--claude", help="Force using Claude model.")]
 CODEX_OPT = Annotated[bool, typer.Option("--codex", help="Force using Codex model.")]
 GEMINI_OPT = Annotated[bool, typer.Option("--gemini", help="Force using Gemini model.")]
+FORCE_OPT = Annotated[
+    bool, typer.Option("--force", help="Overwrite the skill if already installed.")
+]
 
 MODEL_PRIORITY: list[Model] = ["claude", "codex", "gemini"]
 
@@ -25,11 +30,11 @@ TARGET_DIRS: dict[Model, str] = {
     "gemini": ".gemini/skills",
 }
 
+GLOB_CHARS = "*?["
+
 
 def main(argv: list[str] | None = None) -> None:
-    """
-    Entry point for the CLI.
-    """
+    """Run the CLI with argv, or with sys.argv if argv is None."""
     app(argv)
 
 
@@ -64,39 +69,58 @@ def list_() -> None:
 @app.command()
 def add(
     skill: Annotated[str, typer.Argument(...)],
+    *,
     claude: CLAUDE_OPT = False,
     codex: CODEX_OPT = False,
     gemini: GEMINI_OPT = False,
+    force: FORCE_OPT = False,
 ) -> None:
     """
-    Add a new skill.
+    Add a new skill. The skill argument accepts glob patterns (e.g.
+    "python/*") to install every matching skill at once. Pass --force to
+    overwrite skills that are already installed.
     """
-    model = get_model(locals())
+    model = _get_model(claude=claude, codex=codex, gemini=gemini)
     repo = get_repo()
 
+    if _is_glob(skill):
+        fullnames = repo.find_skills(skill)
+        if not fullnames:
+            stderr.print(f"[red]No skills match: {skill}[/red]")
+            raise typer.Exit(code=1)
+
+        had_error = False
+        for fullname in fullnames:
+            try:
+                target_dir = _install_skill(repo, fullname, model=model, force=force)
+            except FileExistsError:
+                stdout.print(f"* [bold]{fullname}[/] - [yellow]skip[/yellow]")
+                continue
+            except ValueError as exc:
+                stderr.print(f"[red]{exc}[/red]")
+                had_error = True
+                continue
+            rel_path = target_dir.relative_to(Path.cwd())
+            stdout.print(f"* [bold]{fullname}[/] - [green]{rel_path}[/green]")
+
+        if had_error:
+            raise typer.Exit(code=1)
+        return
+
     fullname = repo._resolve_fullname(skill)
-    _, _, name = fullname.partition("/")
     try:
-        loader = repo.get_skill(fullname)
-    except ValueError as exc:
+        target_dir = _install_skill(repo, fullname, model=model, force=force)
+    except (ValueError, FileExistsError) as exc:
         stderr.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
-    source_dir = loader.path / name
-    target_dir = Path.cwd() / TARGET_DIRS[model] / name
-
-    if target_dir.exists():
-        stderr.print(f"[red]Skill already installed: {target_dir}[/red]")
-        raise typer.Exit(code=1)
-
-    target_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source_dir, target_dir)
-    stdout.print(f"Installed '{fullname}' to {target_dir}")
+    stdout.print(f"Installed '{fullname}' to {_relpath(target_dir)}")
 
 
 @app.command()
 def edit(
     skill: Annotated[str, typer.Argument(...)],
+    *,
     claude: CLAUDE_OPT = False,
     codex: CODEX_OPT = False,
     gemini: GEMINI_OPT = False,
@@ -104,7 +128,7 @@ def edit(
     """
     Edit an existing skill.
     """
-    get_model(locals())
+    _get_model(claude=claude, codex=codex, gemini=gemini)
     repo = get_repo()
 
     fullname = repo._resolve_fullname(skill)
@@ -123,6 +147,7 @@ def edit(
 @app.command()
 def new(
     skill: Annotated[str, typer.Argument(...)],
+    *,
     claude: CLAUDE_OPT = False,
     codex: CODEX_OPT = False,
     gemini: GEMINI_OPT = False,
@@ -130,7 +155,7 @@ def new(
     """
     Create a new skill.
     """
-    get_model(locals())
+    _get_model(claude=claude, codex=codex, gemini=gemini)
     repo = get_repo()
 
     category, sep, name = skill.partition("/")
@@ -154,15 +179,59 @@ def new(
     skill_md = repo.root / category / name / "SKILL.md"
     editor = os.environ.get("EDITOR", "vi")
     subprocess.run([editor, str(skill_md)], check=True)
-    stdout.print(f"Created new skill '{skill}' at {skill_md}")
+    stdout.print(f"Created new skill '{skill}' at {_relpath(skill_md)}")
 
 
-def get_model(locals: dict[str, Any]) -> Model:
+#
+# Utility functions
+#
+def _get_model(*, claude: bool, codex: bool, gemini: bool) -> Model:
     """
-    Determine the model to use based on the command-line options.
+    Determine which model to use from the command-line flags.
+
+    Returns the first model in MODEL_PRIORITY whose flag is set, or
+    MODEL_PRIORITY[0] if none of them are.
     """
+    flags = {"claude": claude, "codex": codex, "gemini": gemini}
     for model in MODEL_PRIORITY:
-        if locals.get(model) is True:
+        if flags[model]:
             return model
 
     return MODEL_PRIORITY[0]
+
+
+def _is_glob(pattern: str, /) -> bool:
+    """Return whether pattern contains any glob metacharacters."""
+    return any(ch in pattern for ch in GLOB_CHARS)
+
+
+def _relpath(path: Path, /) -> str:
+    """Format path relative to the current working directory, for display."""
+    return os.path.relpath(path, Path.cwd())
+
+
+def _install_skill(
+    repo: SkillRepo, fullname: str, /, *, model: Model, force: bool = False
+) -> Path:
+    """
+    Copy a skill from the repo into the current project.
+
+    Raises:
+        ValueError: if the skill isn't found in the repo.
+        FileExistsError: if it's already installed and force is not set.
+    """
+    loader = repo.get_skill(fullname)
+    _, _, name = fullname.partition("/")
+
+    source_dir = loader.path / name
+    target_dir = Path.cwd() / TARGET_DIRS[model] / name
+
+    if target_dir.exists():
+        if not force:
+            msg = f"Skill already installed: {_relpath(target_dir)}"
+            raise FileExistsError(msg)
+        shutil.rmtree(target_dir)
+
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_dir, target_dir)
+    return target_dir

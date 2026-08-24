@@ -14,7 +14,8 @@ def write_skill(
     skill_dir.mkdir(parents=True, exist_ok=True)
     skill_md = skill_dir / "SKILL.md"
     skill_md.write_text(
-        f"---\nname: {name}\ndescription: {description}\n---\n\n# {name}\n\nBody text.\n"
+        f"---\nname: {name}\ndescription: {description}\n---\n\n"
+        f"# {name}\n\nBody text.\n"
     )
     return skill_md
 
@@ -187,6 +188,22 @@ class TestSkillRepo:
         names = sorted(loader.name for loader in repo.list_skills())
 
         assert names == ["generic", "python"]
+
+    def test_find_skills_matches_category_glob(self, tmp_path: Path) -> None:
+        repo = SkillRepo(root=tmp_path)
+        repo.add_skill("python/a", Skill(name="a", description="d", source="s"))
+        repo.add_skill("python/b", Skill(name="b", description="d", source="s"))
+        repo.add_skill("generic/c", Skill(name="c", description="d", source="s"))
+
+        matches = repo.find_skills("python/*")
+
+        assert matches == ["python/a", "python/b"]
+
+    def test_find_skills_no_match_returns_empty(self, tmp_path: Path) -> None:
+        repo = SkillRepo(root=tmp_path)
+        repo.add_skill("python/a", Skill(name="a", description="d", source="s"))
+
+        assert repo.find_skills("nope/*") == []
 
     def test_list_skills_on_missing_root_returns_empty(self, tmp_path: Path) -> None:
         repo = SkillRepo(root=tmp_path / "does-not-exist")

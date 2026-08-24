@@ -1,5 +1,9 @@
 # chips-skills
 
+[![CI](https://github.com/fabiommendes/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/fabiommendes/skills/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/fabiommendes/skills/branch/main/graph/badge.svg)](https://codecov.io/gh/fabiommendes/skills)
+[![PyPI](https://img.shields.io/pypi/v/chips-skills.svg)](https://pypi.org/project/chips-skills/)
+
 `chips-skill` is a very simple tool that helps managing your skills for coding
 agents. It provides some pre-built skills, but you can also tweak them and add 
 your own. It is mainly designed to be used with [Claude](https://claude.ai), but
@@ -47,3 +51,9 @@ uv tool install chips-skills
 This is a young project, and contributions to the CLI tool are welcome. I am
 very particular about the pre-shipped skills, though: I want to test them, and I
 want them to reflect my coding standards, philosophy, and taste.
+
+
+## References
+
+I collected some skills from other sources. Some skills are included verbatim 
+and others with small modifications. 

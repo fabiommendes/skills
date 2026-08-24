@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import fnmatch
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal
 
 FRONTMATTER_DELIM = "---"
 
 BUNDLED_SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
 DEFAULT_SKILLS_ROOT = Path.home() / ".local" / "share" / "skills"
+
+DuplicatePolicy = Literal["ask", "raise", "overwrite", "skip"]
 
 
 @dataclass
@@ -21,16 +25,12 @@ class SkillRepo:
     root: Path
 
     def init(self) -> None:
-        """
-        Initialize the repository.
-        """
+        """Initialize the repository, prepopulating it with the built-in skills."""
         self.prepopulate(duplicates="skip")
 
-    def prepopulate(
-        self, duplicates: Literal["ask", "raise", "overwrite", "skip"] = "raise"
-    ) -> None:
+    def prepopulate(self, *, duplicates: DuplicatePolicy = "raise") -> None:
         """
-        Prepopulate the repository with default skills.
+        Prepopulate the repository with the skills bundled with the package.
         """
         self.root.mkdir(parents=True, exist_ok=True)
         if not BUNDLED_SKILLS_ROOT.is_dir():
@@ -55,9 +55,28 @@ class SkillRepo:
             return []
         return [SkillLoader(path=p) for p in sorted(self.root.iterdir()) if p.is_dir()]
 
-    def get_skill(self, fullname: str) -> SkillLoader:
+    def find_skills(self, pattern: str, /) -> list[str]:
+        """
+        Return every "category/name" fullname in the repo matching a glob
+        pattern (e.g. "python/*" or "*/python-modules").
+        """
+        matches = []
+        for loader in self.list_skills():
+            for skill_dir in sorted(p for p in loader.path.iterdir() if p.is_dir()):
+                if not (skill_dir / "SKILL.md").is_file():
+                    continue
+                fullname = f"{loader.name}/{skill_dir.name}"
+                if fnmatch.fnmatch(fullname, pattern):
+                    matches.append(fullname)
+        return matches
+
+    def get_skill(self, fullname: str, /) -> SkillLoader:
         """
         Get a skill loader by its full name.
+
+        Raises:
+            ValueError: if fullname isn't "category/name", or no matching
+                skill exists in the repository.
         """
         fullname = self._resolve_fullname(fullname)
         category, sep, name = fullname.partition("/")
@@ -73,13 +92,15 @@ class SkillRepo:
         return SkillLoader(path=category_path)
 
     def add_skill(
-        self,
-        fullname: str,
-        skill: Skill,
-        duplicate: Literal["ask", "raise", "overwrite", "skip"] = "raise",
+        self, fullname: str, skill: Skill, /, *, duplicate: DuplicatePolicy = "raise"
     ) -> None:
         """
         Add a new skill to the repository.
+
+        Raises:
+            ValueError: if fullname isn't "category/name", or duplicate isn't
+                one of "ask", "raise", "overwrite" or "skip".
+            FileExistsError: if the skill already exists and duplicate is "raise".
         """
         category, sep, name = fullname.partition("/")
         if not sep:
@@ -109,7 +130,7 @@ class SkillRepo:
     #
     # Utility methods
     #
-    def _resolve_fullname(self, fullname: str) -> str:
+    def _resolve_fullname(self, fullname: str, /) -> str:
         """
         Resolve a possibly abbreviated skill name to its actual "category/name".
 
@@ -142,6 +163,9 @@ class Skill:
     def render(self) -> str:
         """
         Render the skill as a SKILL.md document (frontmatter + body).
+
+        >>> Skill(name="foo", description="does foo", source="# foo").render()
+        '---\\nname: foo\\ndescription: does foo\\n---\\n\\n# foo\\n'
         """
         header = [
             FRONTMATTER_DELIM,
@@ -164,14 +188,15 @@ class SkillLoader:
 
     @property
     def name(self) -> str:
-        """
-        Return the name of the skill loader.
-        """
+        """Return the name of the skill loader."""
         return self.path.name
 
-    def load_skill(self, skill_name: str) -> Skill:
+    def load_skill(self, skill_name: str, /) -> Skill:
         """
         Load a skill by its name.
+
+        Raises:
+            FileNotFoundError: if no SKILL.md exists for skill_name.
         """
         skill_md = self.path / skill_name / "SKILL.md"
         if not skill_md.is_file():
@@ -187,7 +212,7 @@ class SkillLoader:
         )
 
 
-def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+def _parse_frontmatter(text: str, /) -> tuple[dict[str, str], str]:
     """
     Split a SKILL.md document into its YAML-ish frontmatter and body.
     """

@@ -1,6 +1,6 @@
 ---
 name: python-functions
-description: Style and good practices when implementing or refactoring Python functions and methods
+description: Style and good practices for Python functions and methods (implementing and refactoring)
 ---
 
 # python-functions
@@ -76,8 +76,9 @@ Use google style docstrings. Do not repeat the types in the docstring. Document
 any possible exceptions raised by the function. Document the return value, 
 unless it is None. 
 
-Unless the function is a one-liner, the docstring triple quotes should be on 
-their own lines. 
+Unless the function is a one-liner, the docstring triple quotes should be on
+their own lines. One-liners documentation should use single double quotes, e.g.,
+`"This is a one-liner docstring."`.
 
 The first line of the docstring should be a short summary of the function's
 purpose. If there are more details, they should be included after a blank line.
@@ -85,3 +86,54 @@ purpose. If there are more details, they should be included after a blank line.
 Public functions that do not produce side effects should be documented with a
 doctest example. Skip the test if it is too complex or requires too much
 external dependencies or preparation.
+
+
+## Arguments 
+
+Python accepts arguments by position or by name. If it has an obvious prefered 
+argument, the function should require it to be passed by position. Do so
+by using a leading positional-only argument, e.g., `def f(x, /, y, z)`.
+
+Functions with more than 3 arguments should use keyword-only arguments for the
+less important ones. Also, it should use keyword-only arguments for any argument
+with the same types if they do not share an obvious prefered order. For instance
+
+```python
+
+def function(name: str, role: str): 
+    ...
+```
+
+should be refactored to
+
+```python
+def function(*, name: str, role: str):
+    ...
+```
+
+Boolean flags should almost always be keyword-only arguments and should have a
+default value of `False`. It should always possible to rename the flag so the
+default is False. For instance, add a `no_` prefix to the flag name, e.g., `def
+f(x, *, no_y=False)`.
+
+
+## Overloads
+
+Do not abuse of `@overload.` It usually should be used only for type narrowing
+so we can type it more precisely instead of using `Any` or too broad types.
+
+For instance, a dict-like get() function can be typed better with overloads:
+
+```python
+@overload
+def get(self, key: str) -> str | None: ...
+
+@overload
+def get(self, key: str, *, default: str) -> str: ...
+
+def get(self, key: str, *, default: str | None = None) -> str | None:
+    ...
+```
+
+If a default is provided, the overload removes `None` from the return since we
+known it will always return a `str`. 

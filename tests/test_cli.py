@@ -56,6 +56,36 @@ def test_add_redirects_abbreviated_skill_name(project_dir: Path) -> None:
     assert (project_dir / ".claude" / "skills" / "python-modules").is_dir()
 
 
+def bundled_skill_names(category: str) -> set[str]:
+    category_dir = local_repo.BUNDLED_SKILLS_ROOT / category
+    return {p.name for p in category_dir.iterdir() if (p / "SKILL.md").is_file()}
+
+
+def test_add_glob_installs_every_matching_skill(project_dir: Path) -> None:
+    result = runner.invoke(cli.app, ["add", "python/*", "--claude"])
+
+    assert result.exit_code == 0
+    installed = {p.name for p in (project_dir / ".claude" / "skills").iterdir()}
+    assert installed == bundled_skill_names("python")
+
+
+def test_add_glob_no_match_fails(project_dir: Path) -> None:
+    result = runner.invoke(cli.app, ["add", "nope/*", "--claude"])
+
+    assert result.exit_code != 0
+
+
+def test_add_glob_skips_already_installed_and_succeeds(project_dir: Path) -> None:
+    first = runner.invoke(cli.app, ["add", "python/python-functions", "--claude"])
+    second = runner.invoke(cli.app, ["add", "python/*", "--claude"])
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert "skip" in second.output
+    installed = {p.name for p in (project_dir / ".claude" / "skills").iterdir()}
+    assert installed == bundled_skill_names("python")
+
+
 def test_add_unknown_skill_fails(project_dir: Path) -> None:
     result = runner.invoke(cli.app, ["add", "python/does-not-exist"])
 
@@ -68,6 +98,33 @@ def test_add_twice_fails_on_second_install(project_dir: Path) -> None:
 
     assert first.exit_code == 0
     assert second.exit_code != 0
+
+
+def test_add_force_overwrites_existing_skill(project_dir: Path) -> None:
+    installed = project_dir / ".claude" / "skills" / "python-functions"
+    first = runner.invoke(cli.app, ["add", "python/python-functions", "--claude"])
+    stale_marker = installed / "stale.txt"
+    stale_marker.write_text("stale")
+
+    second = runner.invoke(
+        cli.app, ["add", "python/python-functions", "--claude", "--force"]
+    )
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert installed.is_dir()
+    assert not stale_marker.exists()
+
+
+def test_add_force_overwrites_in_glob_mode(project_dir: Path) -> None:
+    first = runner.invoke(cli.app, ["add", "python/*", "--claude"])
+    second = runner.invoke(cli.app, ["add", "python/*", "--claude", "--force"])
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert "skip" not in second.output
+    installed = {p.name for p in (project_dir / ".claude" / "skills").iterdir()}
+    assert installed == bundled_skill_names("python")
 
 
 def test_new_creates_skill_and_opens_editor(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -130,8 +187,8 @@ def test_edit_unknown_skill_fails(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_get_model_prefers_explicit_flag() -> None:
-    assert cli.get_model({"claude": False, "codex": True, "gemini": False}) == "codex"
+    assert cli._get_model(claude=False, codex=True, gemini=False) == "codex"
 
 
 def test_get_model_defaults_to_claude() -> None:
-    assert cli.get_model({"claude": False, "codex": False, "gemini": False}) == "claude"
+    assert cli._get_model(claude=False, codex=False, gemini=False) == "claude"
