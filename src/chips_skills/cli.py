@@ -11,7 +11,7 @@ from .console import stderr, stdout
 from .local_repo import DEFAULT_SKILLS_ROOT, Skill, SkillRepo
 from .models import Model
 
-__all__ = ["main", "add", "edit", "new", "list_"]
+__all__ = ["main", "add", "edit", "new", "list_", "update"]
 
 app = typer.Typer()
 
@@ -64,6 +64,60 @@ def list_() -> None:
             stdout.print(f"[bold blue]{loader.name}/{skill.name}[/]")
             rendered = Padding(skill.description, (0, 0, 0, 3))
             stdout.print(rendered)
+
+
+@app.command()
+def update(
+    *,
+    claude: CLAUDE_OPT = False,
+    codex: CODEX_OPT = False,
+    gemini: GEMINI_OPT = False,
+) -> None:
+    """
+    Synchronize skills installed in the current directory with the latest
+    versions from the skills repository. With no --claude/--codex/--gemini
+    flags, every installed model directory found in the current directory is
+    updated.
+    """
+    repo = get_repo()
+    models = _select_models(claude=claude, codex=codex, gemini=gemini)
+
+    had_error = False
+    found_any = False
+    for model in models:
+        skills_dir = Path.cwd() / TARGET_DIRS[model]
+        if not skills_dir.is_dir():
+            continue
+
+        for target_dir in sorted(p for p in skills_dir.iterdir() if p.is_dir()):
+            if not (target_dir / "SKILL.md").is_file():
+                continue
+
+            found_any = True
+            name = target_dir.name
+            matches = repo.find_skills(f"*/{name}")
+
+            if not matches:
+                stdout.print(f"* [bold]{name}[/] - [yellow]not found in repo[/yellow]")
+                continue
+            if len(matches) > 1:
+                stderr.print(
+                    f"[red]Ambiguous skill '{name}' matches: "
+                    f"{', '.join(matches)}[/red]"
+                )
+                had_error = True
+                continue
+
+            fullname = matches[0]
+            changed = _sync_skill(repo, fullname, target_dir)
+            status, color = ("updated", "green") if changed else ("up to date", "blue")
+            stdout.print(f"* [bold]{fullname}[/] - [{color}]{status}[/{color}]")
+
+    if not found_any:
+        stdout.print("No skills installed.")
+
+    if had_error:
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -200,6 +254,18 @@ def _get_model(*, claude: bool, codex: bool, gemini: bool) -> Model:
     return MODEL_PRIORITY[0]
 
 
+def _select_models(*, claude: bool, codex: bool, gemini: bool) -> list[Model]:
+    """
+    Determine which models' skill directories to operate on.
+
+    Returns every model whose flag is set, or every model in MODEL_PRIORITY
+    if none of the flags are set.
+    """
+    flags = {"claude": claude, "codex": codex, "gemini": gemini}
+    selected = [model for model in MODEL_PRIORITY if flags[model]]
+    return selected or list(MODEL_PRIORITY)
+
+
 def _is_glob(pattern: str, /) -> bool:
     """Return whether pattern contains any glob metacharacters."""
     return any(ch in pattern for ch in GLOB_CHARS)
@@ -235,3 +301,30 @@ def _install_skill(
     target_dir.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_dir, target_dir)
     return target_dir
+
+
+def _sync_skill(repo: SkillRepo, fullname: str, target_dir: Path, /) -> bool:
+    """
+    Overwrite target_dir with the repo's current contents of fullname.
+
+    Returns whether target_dir's content changed.
+    """
+    loader = repo.get_skill(fullname)
+    _, _, name = fullname.partition("/")
+    source_dir = loader.path / name
+
+    if _dirs_equal(source_dir, target_dir):
+        return False
+
+    shutil.rmtree(target_dir)
+    shutil.copytree(source_dir, target_dir)
+    return True
+
+
+def _dirs_equal(a: Path, b: Path, /) -> bool:
+    """Recursively compare two directories by file name and content."""
+    a_files = sorted(p.relative_to(a) for p in a.rglob("*") if p.is_file())
+    b_files = sorted(p.relative_to(b) for p in b.rglob("*") if p.is_file())
+    if a_files != b_files:
+        return False
+    return all((a / rel).read_bytes() == (b / rel).read_bytes() for rel in a_files)

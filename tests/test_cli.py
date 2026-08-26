@@ -186,6 +186,68 @@ def test_edit_unknown_skill_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code != 0
 
 
+def test_update_syncs_stale_skill_with_repo(project_dir: Path) -> None:
+    runner.invoke(cli.app, ["add", "python/python-functions", "--claude"])
+    installed = project_dir / ".claude" / "skills" / "python-functions"
+    stale_marker = installed / "stale.txt"
+    stale_marker.write_text("stale")
+
+    result = runner.invoke(cli.app, ["update"])
+
+    assert result.exit_code == 0
+    assert "updated" in result.output
+    assert not stale_marker.exists()
+
+
+def test_update_reports_up_to_date_skill(project_dir: Path) -> None:
+    runner.invoke(cli.app, ["add", "python/python-functions", "--claude"])
+
+    result = runner.invoke(cli.app, ["update"])
+
+    assert result.exit_code == 0
+    assert "up to date" in result.output
+
+
+def test_update_with_no_skills_installed_reports_none(project_dir: Path) -> None:
+    result = runner.invoke(cli.app, ["update"])
+
+    assert result.exit_code == 0
+    assert "No skills installed." in result.output
+
+
+def test_update_skips_skill_not_found_in_repo(project_dir: Path) -> None:
+    runner.invoke(cli.app, ["add", "python/python-functions", "--claude"])
+    installed_root = project_dir / ".claude" / "skills"
+    orphan = installed_root / "orphan-skill"
+    orphan.mkdir()
+    (orphan / "SKILL.md").write_text(
+        "---\nname: orphan-skill\ndescription: d\n---\n\nBody.\n"
+    )
+
+    result = runner.invoke(cli.app, ["update"])
+
+    assert result.exit_code == 0
+    assert "not found in repo" in result.output
+    assert orphan.is_dir()
+
+
+def test_update_respects_model_flag(project_dir: Path) -> None:
+    runner.invoke(cli.app, ["add", "python/python-functions", "--claude"])
+    runner.invoke(cli.app, ["add", "python/python-functions", "--codex"])
+    claude_dir = project_dir / ".claude" / "skills" / "python-functions"
+    codex_dir = project_dir / ".codex" / "skills" / "python-functions"
+    claude_marker = claude_dir / "stale.txt"
+    codex_marker = codex_dir / "stale.txt"
+    claude_marker.write_text("stale")
+    codex_marker.write_text("stale")
+
+    result = runner.invoke(cli.app, ["update", "--claude"])
+
+    assert result.exit_code == 0
+    assert not claude_marker.exists()
+    assert codex_marker.exists()
+
+
 def test_get_model_prefers_explicit_flag() -> None:
     assert cli._get_model(claude=False, codex=True, gemini=False) == "codex"
 
