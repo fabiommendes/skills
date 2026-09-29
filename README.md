@@ -1,59 +1,65 @@
 # chips-skills
 
-[![CI](https://github.com/fabiommendes/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/fabiommendes/skills/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/fabiommendes/skills/branch/main/graph/badge.svg)](https://codecov.io/gh/fabiommendes/skills)
-[![PyPI](https://img.shields.io/pypi/v/chips-skills.svg)](https://pypi.org/project/chips-skills/)
-
-`chips-skill` is a very simple tool that helps managing your skills for coding
-agents. It provides some pre-built skills, but you can also tweak them and add 
-your own. It is mainly designed to be used with [Claude](https://claude.ai), but
-it should probably work with other agents with minimum adjustments.
+A collection of skills and subagents for coding agents. It is mainly designed
+to be used with [Claude](https://claude.ai), but it should probably work with
+other agents with minimum adjustments.
 
 
-## Usage
+## Skills
 
-Once installed, you will probably want to get a list of all skills available:
+Skills live under `skills/<category>/<skill>`. Install them with
+[`npx skills`](https://github.com/vercel-labs/skills).
+
+List the skills available in this repository:
 
 ```bash
-chips-skills list
+npx skills add fabiommendes/skills --list
 ```
 
-Select anyone that looks interesting and install it in your project:
+Install one or more skills in your project, or globally with `-g`:
 
 ```bash
-chips-skills add <skill_name> 
+npx skills add fabiommendes/skills --skill tdd --skill spec
 ```
 
-This will scan your current project and install the selected skills in the proper
-folder (e.g., `.claude/skills` or `.codex/skills`).
-
-The skills live in a global user repository under
-`~/.local/share/skills/<category>/<skill>`. This tool pre-populates this folder with
-some skills, but you can also add your own. For those who like CLI's,
-`chips-skills` provides a command for that, `chips-skills new <category/skill>`,
-but you can also just fire your prefered text editor at that folder and create
-them manually.
+Keep them up to date with `npx skills update`.
 
 
-## Installation
+## Agents
 
-My preferred way is to use uv:
+Subagents live under `agents/<name>/AGENT.md`. Together they form a software
+team that the `factory` skill orchestrates:
+
+| Agent | Role |
+|---|---|
+| `analyst` | Turns a written request into a spec. |
+| `architect` | Designs the public API and writes the stubs. |
+| `tester` | Writes tests from the spec, blind to the implementation. |
+| `implementer` | Implements the spec, blind to the test code. |
+| `reviewer` | Reviews tests and implementation against the spec. |
+| `security-reviewer` | Reviews a change for security flaws. |
+| `breaker` | Attacks business rules and design with counterexamples. |
+| `user` | Uses the software as a black box and reports what breaks. |
+| `investigator` | Reproduces and diagnoses bugs, without fixing them. |
+| `documenter` | Writes user-facing docs from the spec and the interface. |
+| `text-reviewer` | Fixes and tightens prose in comments and docs. |
+| `grader` | Helps a teacher classify and grade student submissions. |
+
+To install an agent for Claude Code, link its directory into
+`~/.claude/agents/`:
 
 ```bash
-uv tool install chips-skills
+ln -s "$PWD/agents/reviewer" ~/.claude/agents/reviewer
 ```
-
-(but of course you can adapt it to use pip, poetry, etc).
 
 
 ## Contributing
 
-This is a young project, and contributions to the CLI tool are welcome. I am
-very particular about the pre-shipped skills, though: I want to test them, and I
-want them to reflect my coding standards, philosophy, and taste.
+I am very particular about these skills: I want to test them, and I want them
+to reflect my coding standards, philosophy, and taste.
 
 
 ## References
 
-I collected some skills from other sources. Some skills are included verbatim 
-and others with small modifications. 
+I collected some skills from other sources. Some skills are included verbatim
+and others with small modifications.
