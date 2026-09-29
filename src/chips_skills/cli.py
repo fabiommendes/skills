@@ -1,11 +1,16 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich import inspect
+from rich import print as rprint
+from rich.errors import NotRenderableError
 from rich.padding import Padding
+from rich.panel import Panel
 
 from .console import stderr, stdout
 from .local_repo import DEFAULT_SKILLS_ROOT, Skill, SkillRepo
@@ -35,6 +40,9 @@ GLOB_CHARS = "*?["
 
 def main(argv: list[str] | None = None) -> None:
     """Run the CLI with argv, or with sys.argv if argv is None."""
+    import builtins
+
+    builtins.dbg = _dbg  # type: ignore
     app(argv)
 
 
@@ -102,8 +110,7 @@ def update(
                 continue
             if len(matches) > 1:
                 stderr.print(
-                    f"[red]Ambiguous skill '{name}' matches: "
-                    f"{', '.join(matches)}[/red]"
+                    f"[red]Ambiguous skill '{name}' matches: {', '.join(matches)}[/red]"
                 )
                 had_error = True
                 continue
@@ -262,7 +269,7 @@ def _select_models(*, claude: bool, codex: bool, gemini: bool) -> list[Model]:
     if none of the flags are set.
     """
     flags = {"claude": claude, "codex": codex, "gemini": gemini}
-    selected = [model for model in MODEL_PRIORITY if flags[model]]
+    selected: list[Model] = [model for model in MODEL_PRIORITY if flags[model]]
     return selected or list(MODEL_PRIORITY)
 
 
@@ -292,15 +299,14 @@ def _install_skill(
     source_dir = loader.path / name
     target_dir = Path.cwd() / TARGET_DIRS[model] / name
 
-    if target_dir.exists():
-        if not force:
-            msg = f"Skill already installed: {_relpath(target_dir)}"
-            raise FileExistsError(msg)
-        shutil.rmtree(target_dir)
+    if force or not target_dir.exists():
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source_dir, target_dir)
+        return target_dir
 
-    target_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source_dir, target_dir)
-    return target_dir
+    dbg()
+    msg = f"Skill already installed: {_relpath(target_dir)}"
+    raise FileExistsError(msg)
 
 
 def _sync_skill(repo: SkillRepo, fullname: str, target_dir: Path, /) -> bool:
@@ -328,3 +334,20 @@ def _dirs_equal(a: Path, b: Path, /) -> bool:
     if a_files != b_files:
         return False
     return all((a / rel).read_bytes() == (b / rel).read_bytes() for rel in a_files)
+
+
+def _dbg(*args, full: bool = False, **kwargs) -> None:
+    if not args and not kwargs:
+        ns = sys._getframe(1).f_locals
+        _dbg(**ns, full=full)
+    if args:
+        rprint(args)
+    if kwargs and full:
+        for k, v in kwargs.items():
+            inspect(v, title=k, docs=False, methods=False, private=False, dunder=False)
+    elif kwargs:
+        for k, v in kwargs.items():
+            try:
+                rprint(Panel(v, title=k, title_align="left"))
+            except NotRenderableError:
+                rprint(Panel(repr(v), title=k, title_align="left"))

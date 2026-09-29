@@ -30,6 +30,32 @@ For reference, the list shows effects from best to worst.
 
 Try to keep implementations as high as possible in this list.
 
+## Arguments
+
+If the function has only one required argument, require it to be positional, use
+the `/` symbol to enforce this in the function signature.
+
+```python
+def filter[T](data: Iterable[T], /, by: Callable[[T], bool]) -> Iterable[T]: ...
+```
+
+If the function expresses a relation between two arguments and the role of each
+argument is implicit by position, also require them to be positional. E.g., 
+
+```python
+def swap[T](a: T, b: T, /) -> tuple[T, T]: ...
+```
+
+If the function has more than one optional argument with the same type, require
+both to be keyword-only. If it has more than 3 optional arguments, require all
+of them to be keyword-only. Use the `*` symbol to enforce this in the function
+signature. E.g., 
+
+```python
+def join_items(data: Iterable[str], *, sep: str = ",", end: str = "\n") -> str: ...
+```
+  
+
 ## Testing
 
 Pure functions should be tested with examples in unit tests. If the function

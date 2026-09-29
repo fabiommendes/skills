@@ -16,3 +16,7 @@ wheels/
 .coverage
 coverage.xml
 htmlcov/
+
+# Local environment files
+.env
+installed/

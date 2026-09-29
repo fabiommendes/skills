@@ -1,16 +1,13 @@
 [project]
 name = "chips-skills"
-version = "0.1.0"
+version = "0.1.1"
 description = "Add your description here"
 readme = "README.md"
 authors = [
     { name = "Fábio Macêdo Mendes", email = "fabiomacedomendes@gmail.com" },
 ]
 requires-python = ">=3.13"
-dependencies = [
-    "rich>=15.0.0",
-    "typer>=0.27.1",
-]
+dependencies = ["rich>=15.0.0", "typer>=0.27.1"]
 
 [project.scripts]
 chips-skills = "chips_skills.cli:main"
@@ -44,7 +41,7 @@ test = "pytest --cov=chips_skills --cov-report=term-missing"
 lint = "ruff check . && ruff format --check ."
 typecheck = "mypy"
 ci = "task lint && task typecheck && task test"
-release = "task ci && uv build"
+release = "task ci && uv build && git push && git tag v$(uv version --short) && git push --tags"
 
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]

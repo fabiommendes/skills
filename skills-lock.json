@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "bro": {
+      "source": ".",
+      "sourceType": "local",
+      "computedHash": "34fef0ec04744916b420f76b04bb71a7858127bba39a1cb697b3633309aa8a85"
+    },
+    "ttdd": {
+      "source": ".",
+      "sourceType": "local",
+      "computedHash": "44a76ff6a0e0c37e90c4a52d7c5af9ad727fbb06df466fd2f0c83c4012c0f210"
+    }
+  }
+}
