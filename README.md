@@ -4,6 +4,16 @@ A collection of skills and subagents for coding agents. It is mainly designed
 to be used with [Claude](https://claude.ai), but it should probably work with
 other agents with minimum adjustments.
 
+To install every skill and agent from a local clone, for the current user and
+Claude Code:
+
+```bash
+./install.sh
+```
+
+Skills are copied, so run it again after changing a skill. Agents are
+symlinked, so changes to them take effect immediately.
+
 
 ## Skills
 
@@ -45,7 +55,7 @@ team that the `factory` skill orchestrates:
 | `text-reviewer` | Fixes and tightens prose in comments and docs. |
 | `grader` | Helps a teacher classify and grade student submissions. |
 
-To install an agent for Claude Code, link its directory into
+To install a single agent for Claude Code, link its directory into
 `~/.claude/agents/`:
 
 ```bash
