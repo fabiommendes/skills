@@ -3,3 +3,7 @@
 
 # Symlink to the local install directory (~/.agents/skills)
 installed
+
+# Tool caches
+.ruff_cache/
+__pycache__/
