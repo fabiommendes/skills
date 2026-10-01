@@ -1,8 +1,8 @@
 ---
 type: plan
 status: active
-tags: [audit-skills, skill-validation, audit-webserver, audit-dependencies, audit-privacy, audit-ux, audit-ui, audit-report]
-relatedTo: [audit-report, audit-webserver, audit-dependencies, audit-privacy, audit-ux, audit-ui]
+tags: [audit-skills, skill-validation, audit-webserver, audit-db, audit-dependencies, audit-privacy, audit-ux, audit-ui, audit-report]
+relatedTo: [audit-report, audit-webserver, audit-db, audit-dependencies, audit-privacy, audit-ux, audit-ui]
 ---
 
 # Handoff: validate the audit skills
@@ -13,7 +13,7 @@ the skills where they fall short. No skill has been run on a real project yet.
 
 ## Current state
 
-- Skills: `skills/qa/audit-{report,webserver,dependencies,privacy,ux,ui}/`,
+- Skills: `skills/qa/audit-{report,webserver,db,dependencies,privacy,ux,ui}/`,
   installed globally with `./install.sh`. The old `security-audit` copy was
   removed from `~/.agents/skills`.
 - Commits: `4f52a26` (the family, replacing `security-audit`) and `3741d90`
@@ -100,6 +100,15 @@ they exist; planted fixtures cover the rest.
   - A small planted multi-tenant API: neither app above has tenants, so
     category 1 needs its own fixture.
   - A clean, well-maintained small app, to measure false positives.
+- `audit-db`: a planted fixture, small enough to keep a full ground truth: a
+  list endpoint with a nested serializer that reads a relation per row, a
+  filter and a sort on unindexed columns of a table that grows per event, a
+  composite unique with a nullable column, a unique ignoring soft delete, a
+  user deletion that cascades into company invoices, an ORM-only cascade
+  bypassed by a bulk delete, a counter column updated in one of two write
+  paths, an unjustified copied column, a balance updated by read-modify-write,
+  money in a float column, and an index created without `CONCURRENTLY` on the
+  large table. Measure with and without a database (step 2 of the skill).
 - `audit-dependencies`: a planted fixture with old versions of popular npm and
   Python packages (confirm with `osv-scanner` which advisories they carry; do
   not pick CVEs from memory), a `FROM node:latest` Dockerfile, a workflow

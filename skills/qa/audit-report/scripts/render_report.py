@@ -253,12 +253,22 @@ def validate(data: object, base_dir: Path) -> list[str]:
                 errors.append(f"issues[{i}] is missing '{key}'")
 
     inventory = data.get("inventory")
-    if inventory is not None:
-        columns = inventory.get("columns", [])
-        for i, row in enumerate(inventory.get("rows", [])):
+    if inventory is not None and not isinstance(inventory, (dict, list)):
+        errors.append("'inventory' must be an object or a list of objects")
+    for n, table in enumerate(inventories(data)):
+        name = "inventory" if isinstance(inventory, dict) else f"inventory[{n}]"
+        columns = table.get("columns", [])
+        for i, row in enumerate(table.get("rows", [])):
             if len(row) != len(columns):
-                errors.append(f"inventory.rows[{i}] has {len(row)} cells; 'columns' has {len(columns)}")
+                errors.append(f"{name}.rows[{i}] has {len(row)} cells; 'columns' has {len(columns)}")
     return errors
+
+
+def inventories(data: dict) -> list[dict]:
+    """The coverage tables: `inventory` may hold one table or a list of tables."""
+    inventory = data.get("inventory")
+    tables = inventory if isinstance(inventory, list) else [inventory]
+    return [table for table in tables if isinstance(table, dict)]
 
 
 # Issues ---------------------------------------------------------------------
@@ -554,17 +564,19 @@ def render_pdf(data: dict, report: dict, labels: dict, out_path: Path, base_dir:
         story.append(KeepTogether([Spacer(1, 8), wrapped(block, styles["mono"])]))
 
     # Coverage appendix.
-    inventory = data.get("inventory")
-    if inventory and inventory.get("rows"):
+    tables = [table for table in inventories(data) if table.get("rows")]
+    if tables:
         story.append(PageBreak())
         story.append(Paragraph(labels["coverage"], h1))
-        if inventory.get("title"):
-            story.append(Paragraph(inline(inventory["title"], mono), h2))
-        columns = inventory["columns"]
+    for table in tables:
+        if table.get("title"):
+            story.append(Paragraph(inline(table["title"], mono), h2))
+        columns = table["columns"]
         width = CONTENT_WIDTH / len(columns)
         rows = [[Paragraph(f"<b>{inline(c, mono)}</b>", small) for c in columns]]
-        rows += [[Paragraph(inline(cell, mono), small) for cell in row] for row in inventory["rows"]]
+        rows += [[Paragraph(inline(cell, mono), small) for cell in row] for row in table["rows"]]
         story.append(grid_table(rows, [width] * len(columns)))
+        story.append(Spacer(1, 12))
 
     def decorate(canvas, doc) -> None:
         canvas.saveState()
@@ -766,8 +778,7 @@ def html_image(path: Path) -> str:
 def render_html(data: dict, report: dict, labels: dict, base_dir: Path) -> str:
     findings = data["findings"]
     counts = report["counts"]
-    inventory = data.get("inventory")
-    has_inventory = bool(inventory and inventory.get("rows"))
+    tables = [table for table in inventories(data) if table.get("rows")]
     out: list[str] = []
 
     sections = [
@@ -777,7 +788,7 @@ def render_html(data: dict, report: dict, labels: dict, base_dir: Path) -> str:
         ("recommendations", labels["recommendations"]),
         ("issues", labels["issues"]),
     ]
-    if has_inventory:
+    if tables:
         sections.append(("coverage", labels["coverage"]))
     out.append(f"<nav>{''.join(f'<a href=#{sid}>{html.escape(title)}</a>' for sid, title in sections)}</nav>")
 
@@ -875,14 +886,16 @@ def render_html(data: dict, report: dict, labels: dict, base_dir: Path) -> str:
         )
     out.append("</section>")
 
-    if has_inventory:
+    if tables:
         out.append(f'<section id="coverage"><h2>{labels["coverage"]}</h2>')
-        if inventory.get("title"):
-            out.append(f"<h3>{html_inline(inventory['title'])}</h3>")
-        out.append("<table><tr>" + "".join(f"<th>{html_inline(c)}</th>" for c in inventory["columns"]) + "</tr>")
-        for row in inventory["rows"]:
-            out.append("<tr>" + "".join(f"<td>{html_inline(cell)}</td>" for cell in row) + "</tr>")
-        out.append("</table></section>")
+        for table in tables:
+            if table.get("title"):
+                out.append(f"<h3>{html_inline(table['title'])}</h3>")
+            out.append("<table><tr>" + "".join(f"<th>{html_inline(c)}</th>" for c in table["columns"]) + "</tr>")
+            for row in table["rows"]:
+                out.append("<tr>" + "".join(f"<td>{html_inline(cell)}</td>" for cell in row) + "</tr>")
+            out.append("</table>")
+        out.append("</section>")
 
     heading = html.escape(report["heading"])
     return f"""<!DOCTYPE html>

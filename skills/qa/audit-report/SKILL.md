@@ -12,8 +12,8 @@ skill decides how findings are recorded and delivered.
 ## Output directory
 
 Write everything to `docs/audits/<area>/`, where `<area>` is the audit skill's
-name without the `audit-` prefix (`webserver`, `dependencies`, `privacy`, `ux`,
-`ui`). Create the directory if needed.
+name without the `audit-` prefix (`webserver`, `db`, `dependencies`, `privacy`,
+`ux`, `ui`). Create the directory if needed.
 
 | File | Written by |
 |---|---|
@@ -97,8 +97,9 @@ name without the `audit-` prefix (`webserver`, `dependencies`, `privacy`, `ux`,
   `screenshot` (a path relative to `findings.json`) in findings; `category` and
   `evidence` in strengths; `labels` in issues (defaults to the severities of
   the issue's findings).
-- `inventory` is the coverage table the audit skill asks you to build. The
-  renderer prints it as an appendix.
+- `inventory` is the coverage table the audit skill asks you to build, or a
+  list of such tables when the skill asks for more than one. The renderer
+  prints them as an appendix.
 - Each issue gets one actionable fix. Group related findings with the same fix
   into one issue, such as several default secrets, rather than filing one issue
   per line. Use the title prefix the audit skill defines. Acceptance criteria
