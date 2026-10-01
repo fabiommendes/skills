@@ -8,3 +8,6 @@ This project is a collection of skills and subagents for AI coding agents.
   after changing a skill; agents are symlinks and need no reinstall.
 
 Never add new skills or agents unless explicitly asked.
+
+Validation fixtures, ground truth, and test methodology for the skills live in
+the separate `skills-validation` repository (`../skills-validation`).
