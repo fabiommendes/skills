@@ -10,4 +10,6 @@ This project is a collection of skills and subagents for AI coding agents.
 Never add new skills or agents unless explicitly asked.
 
 Validation fixtures, ground truth, and test methodology for the skills live in
-the separate `skills-validation` repository (`../skills-validation`).
+the separate, private `skills-validation` repository
+(<https://github.com/fabiommendes/skills-validation>, cloned at
+`../skills-validation`).
