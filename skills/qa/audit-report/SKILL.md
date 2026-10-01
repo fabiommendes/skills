@@ -31,7 +31,8 @@ name without the `audit-` prefix (`webserver`, `dependencies`, `privacy`, `ux`,
   screen plus the steps to reach it for interface findings.
 - Quote the offending code in `snippet`, trimmed to the lines that show the
   problem. Mask secret values and personal data: keep the first four
-  characters of a secret and replace the rest with `****`.
+  characters of a secret of 12 or more characters and replace the rest with
+  `****`; replace shorter secrets entirely with `****`.
 - Assign severity with the severity table of the audit skill you are running.
   Every audit uses the same five levels: `critical`, `high`, `medium`, `low`,
   `info`.
@@ -108,7 +109,17 @@ name without the `audit-` prefix (`webserver`, `dependencies`, `privacy`, `ux`,
 
 ## Rendering
 
-1. Run the renderer from this skill's directory:
+1. From the project root, check that every location and snippet exists in the
+   source:
+
+   ```bash
+   python3 <this-skill-dir>/scripts/check_findings.py docs/audits/<area>/findings.json
+   ```
+
+   For each problem it reports, reread the code and correct the location or
+   the snippet; drop the finding if the code is not there. Run it again until
+   it prints `OK`.
+2. Run the renderer from this skill's directory:
 
    ```bash
    uv run --with reportlab --with pillow python <this-skill-dir>/scripts/render_report.py docs/audits/<area>/findings.json
@@ -117,9 +128,9 @@ name without the `audit-` prefix (`webserver`, `dependencies`, `privacy`, `ux`,
    Without `uv`, create a virtual environment outside the project
    (`python3 -m venv /tmp/audit-venv`), install `reportlab` and `pillow` in it,
    and run the script with its Python. Install nothing globally.
-2. If the script reports problems in `findings.json`, fix each one and run it
-   again. Continue only when it writes the three files.
-3. Check the PDF visually: `pdftoppm -r 60 -png docs/audits/<area>/report.pdf /tmp/<area>-page`,
+3. If the renderer reports problems in `findings.json`, fix each one and run
+   it again. Continue only when it writes the three files.
+4. Check the PDF visually: `pdftoppm -r 60 -png docs/audits/<area>/report.pdf /tmp/<area>-page`,
    then look at every page. Fix what renders badly, such as snippets too long
    to read, by editing `findings.json`, and render again. Deliver only when
    every page reads cleanly.

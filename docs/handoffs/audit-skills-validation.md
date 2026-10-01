@@ -72,15 +72,24 @@ the skills where they fall short. No skill has been run on a real project yet.
 | T10 | Honest limits (N5, N7) | Run `audit-dependencies` with no network, and `audit-ux` without a running app. | The report says what could not be checked instead of guessing. |
 | T11 | Portability (O6) | Render on a machine or container without `uv` and without DejaVu fonts. | The documented fallback works; the PDF shows no missing glyphs. |
 
-T3 is mechanical. Consider adding a checker script to `audit-report`
-(`scripts/check_findings.py`: verify each `location` and `snippet` against the
-repository) and have the audit skills run it before rendering.
+T3 is mechanical: `audit-report/scripts/check_findings.py` checks every
+`location` and `snippet` against the repository, and `audit-report` runs it
+before rendering. Run it again when scoring, since a run may skip it.
 
 ## Fixtures
 
 Public projects with documented vulnerabilities serve as ground truth where
-they exist; planted fixtures cover the rest. Decide whether fixtures live in
-this repository (for example `tests/fixtures/`) or are cloned on demand.
+they exist; planted fixtures cover the rest.
+
+- `tests/fixtures/sync.sh [dest]` prepares every fixture in `dest` (default
+  `/tmp/audit-fixtures`), outside this repository, so runs see neither this
+  repository nor the ground truth.
+- Public projects are listed in `tests/fixtures/external.tsv` and fetched at a
+  pinned commit; no submodules, so `npx skills add` stays fast.
+- Planted fixtures go in `tests/fixtures/planted/<name>/`; the script copies
+  each into its own git repository.
+- Ground truth for each fixture goes in `tests/ground-truth/<name>.md`
+  (done: `vampi.md`).
 
 - `audit-webserver`:
   - OWASP Juice Shop (<https://github.com/juice-shop/juice-shop>): large
@@ -143,3 +152,25 @@ this repository (for example `tests/fixtures/`) or are cloned on demand.
 - `skill-review`: re-check each skill after fixes.
 - `anthropic-skills:skill-creator`: evals and repeated runs.
 - `writing-for-agents`: when editing the skills.
+
+## Results
+
+### Run 1: `audit-webserver` on VAmPI (2026-10-01)
+
+Run by a subagent with a plain user prompt, from the installed skill, before
+the checker existed. Ground truth: `tests/ground-truth/vampi.md`.
+
+- T1: fired `audit-webserver`, which loaded `audit-report`.
+- T2: 9 of 9 listed defects; 5 of 8 extra defects (missed X6, X7, X8).
+- T3: no fabricated location. Four snippets were paraphrased (`...` inside a
+  line, a statement joined from two lines); the checker now accepts both.
+- T4: inventory of 14 routes, complete. Four categories not applicable, each
+  with a valid reason.
+- T7: four files written; 21-page PDF checked by the run.
+- T9: only `docs/` added to the fixture.
+- Severity: G4 rated `high`, plain-text passwords rated `critical`, `/createdb`
+  rated `high`; the revised table settles each case.
+- Skill feedback, all applied: spec-first route registration (OpenAPI
+  `operationId`), shallow clones hide git history, live exploit payloads are
+  not needed (the run sent SQL injection probes to a local server and was
+  interrupted by a safety classifier), and short secrets are masked whole.
