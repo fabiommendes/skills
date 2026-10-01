@@ -457,6 +457,8 @@ def category_chart(data: dict, report: dict, font: str) -> Drawing:
 
 def render_pdf(data: dict, report: dict, labels: dict, out_path: Path, base_dir: Path) -> None:
     regular, bold, mono = register_fonts()
+    # The PDF base fonts have no check mark glyph.
+    check = "✓" if regular == "DejaVuSans" else "+"
     styles = make_styles(regular, bold, mono)
     body, small, h1, h2, h3 = (styles[k] for k in ("body", "small", "h1", "h2", "h3"))
     heading = report["heading"]
@@ -491,7 +493,8 @@ def render_pdf(data: dict, report: dict, labels: dict, out_path: Path, base_dir:
     for s in data["strengths"]:
         evidence = f" <font color='{green}'>({inline(s['evidence'], mono)})</font>" if s.get("evidence") else ""
         prefix = f"<b>{inline(report['titles'][s['category']], mono)}:</b> " if s.get("category") else ""
-        story.append(Paragraph(f"<font color='{green}'>✓</font> {prefix}{inline(s['text'], mono)}{evidence}", body))
+        text = f"<font color='{green}'>{check}</font> {prefix}{inline(s['text'], mono)}{evidence}"
+        story.append(Paragraph(text, body))
     if data.get("risks"):
         story.append(Paragraph(labels["risks"], h2))
         story += [Paragraph(f"• {inline(r, mono)}", body) for r in data["risks"]]
