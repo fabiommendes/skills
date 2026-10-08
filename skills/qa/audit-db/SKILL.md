@@ -21,13 +21,14 @@ Copy this checklist and track it:
 - [ ] 2. Detect the stack and ask for a database
 - [ ] 3. Build the table and query inventories
 - [ ] 4. Check every category
-- [ ] 5. Write findings.json and render
+- [ ] 5. Synthesize and render
 ```
 
 ## 1. Load audit-report
 
-Invoke the `audit-report` skill now. It defines the findings file you fill in
-as you go. The area is `db`; the issue title prefix is `[DB]`.
+Invoke the `audit-report` skill now and start or resume the log. It defines how
+you record findings as you go. The area is `db`; the issue title prefix is
+`[DB]`.
 
 ## 2. Detect the stack and ask for a database
 
@@ -56,7 +57,7 @@ number of rows are the strongest evidence for N+1.
 
 ## 3. Build the table and query inventories
 
-Record two tables in `inventory`, as a list.
+Record two inventory tables.
 
 **Tables.** One row per table: table, model or migration `file:line`, size
 class, indexes, unique constraints, foreign keys with their ON DELETE rule,
@@ -190,10 +191,10 @@ migration tool.
 | `low` | Hygiene with no current effect: redundant or unused indexes, a consistent denormalization without justification, an intended ON DELETE rule that is not documented. |
 | `info` | An observation with no risk on its own. |
 
-## 5. Write findings.json and render
+## 5. Synthesize and render
 
-Fill `findings.json` as `audit-report` defines, with all ten categories in
-`categories`, and render it. For each finding, put the schema and the query
+Record all ten categories, findings, and strengths as `audit-report` defines,
+write the synthesis, and render. For each finding, put the schema and the query
 site in `location`, the table's size class and row count when known in
 `conditions`, and query counts or `EXPLAIN` output in `description` when you
 measured them. Mark findings made from code alone, without measurement, with

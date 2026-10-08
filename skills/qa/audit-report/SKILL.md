@@ -1,140 +1,203 @@
 ---
 name: audit-report
-description: Defines the findings file shared by the audit-* skills and renders it into a PDF report, an HTML report, and ready-to-paste GitHub issues. Use when an audit skill reaches its report step, or when the user wants an audit report regenerated from a findings.json.
+description: Defines how the audit-* skills record findings with the audit-findings command line, which several agents can share in parallel and across sessions, and renders them into a PDF report, an HTML report, and ready-to-paste GitHub issues. Use when an audit skill reaches its first step, or when the user wants an audit report regenerated from a findings.json.
 ---
 
 # Audit report
 
-Every `audit-*` skill records its results in one findings file and renders it
-with the script in this skill. The audit skill decides what to look for; this
+Every `audit-*` skill records its results with the `audit-findings` command
+line and renders them with it. The audit skill decides what to look for; this
 skill decides how findings are recorded and delivered.
+
+Run every command as `uvx audit-findings@0.1.0 <command>`, from the project
+root. Below, that prefix is shortened to `audit-findings`. Without `uv`, create
+a virtual environment outside the project (`python3 -m venv /tmp/audit-venv`),
+install `audit-findings==0.1.0` in it, and run its `audit-findings`. Install
+nothing globally.
 
 ## Output directory
 
-Write everything to `docs/audits/<area>/`, where `<area>` is the audit skill's
+Everything goes to `docs/audits/<area>/`, where `<area>` is the audit skill's
 name without the `audit-` prefix (`webserver`, `db`, `dependencies`, `privacy`,
-`ux`, `ui`). Create the directory if needed.
+`ux`, `ui`). Pass `-a <area>` to every command.
 
 | File | Written by |
 |---|---|
-| `findings.json` | you, during the audit |
+| `findings.jsonl` | `audit-findings`, as you record; never edit it by hand |
 | `screenshots/*.png` | you, when a finding needs one (optional) |
-| `report.pdf`, `report.html`, `issues.md` | the renderer |
+| `findings.json`, `report.pdf`, `report.html`, `issues.md` | `audit-findings render` |
+
+## Starting or resuming
+
+If `docs/audits/<area>/findings.jsonl` exists, the audit is under way: run
+`audit-findings -a <area> status` and continue from what it lists. Do not read
+the log itself.
+
+Otherwise create it, then record every category of the audit skill:
+
+```bash
+audit-findings -a webserver init <<'EOF'
+{"lang": "en", "title": "Security Audit Report", "project": "acme-api",
+ "scope": "FastAPI backend in `src/`, React frontend in `web/`."}
+EOF
+
+audit-findings -a webserver add category <<'EOF'
+[{"id": "idor", "title": "IDOR"},
+ {"id": "xss", "title": "XSS", "applies": false, "note": "no HTML rendering of user input"}]
+EOF
+```
+
+Write all text in one language and set `lang` to `en` or `pt`. `date` defaults
+to today. Set `methodology` once you know it: paragraphs separated by blank
+lines with the detected stack and how each category maps onto it.
+
+```bash
+audit-findings -a webserver update meta <<'EOF'
+{"methodology": "..."}
+EOF
+```
+
+Run `start <category>` when you begin a category and `done <category>` when
+you finish it; `status` then shows what is left.
 
 ## Recording findings
+
+Pass records as JSON on stdin, one object or an array. `add` prints the id of
+each record and refuses the whole batch if one record is wrong: a missing
+field, an unknown category, or a location or snippet that is not in the
+source. Fix what it reports and run it again.
+
+```bash
+audit-findings -a webserver add finding <<'EOF'
+{"category": "idor", "severity": "critical",
+ "title": "GET /invoices/{id} does not check the tenant",
+ "location": "src/api/invoices.py:42-47",
+ "snippet": "return db.query(Invoice).filter(Invoice.id == invoice_id).first()",
+ "language": "python",
+ "description": "What is wrong.",
+ "impact": "What an attacker or user can do, or what goes wrong.",
+ "fix": "The suggested fix.",
+ "conditions": "Any authenticated user."}
+EOF
+```
 
 - Record only what you verified: code you read, a command you ran, a screen you
   saw. Never speculate, and never invent locations, CVEs, or quotes.
 - One finding per distinct defect. The same mistake repeated in several places
-  is one finding whose `location` lists every place.
+  is one finding whose `location` lists every place. When `add` warns that a
+  finding overlaps another, read both with `show`; if they are the same
+  defect, merge them with `update` and `remove` the new one.
 - Give the exact location: `path:line` or `path:start-end` for code; route or
   screen plus the steps to reach it for interface findings.
 - Quote the offending code in `snippet`, trimmed to the lines that show the
   problem. Mask secret values and personal data: keep the first four
   characters of a secret of 12 or more characters and replace the rest with
   `****`; replace shorter secrets entirely with `****`.
-- Assign severity with the severity table of the audit skill you are running.
-  Every audit uses the same five levels: `critical`, `high`, `medium`, `low`,
-  `info`.
+- Assign severity with the severity table of the audit skill you are running:
+  `critical`, `high`, `medium`, `low`, or `info`.
 - Record exploitability or reproduction conditions in `conditions`: feature
   flags, required configuration, roles, devices.
-- Record what is **correct** in `strengths`, with evidence. Strengths prove
-  coverage: "every handler in `routers/orders.py` checks ownership" shows the
-  router was read.
-- Keep every category of the audit in `categories`. Mark the ones that do not
-  apply with `"applies": false` and the reason in `note`.
-- Write all text in one language and set `lang` to `en` or `pt`.
+- `snippet`, `language`, `conditions`, and `screenshot` (a path relative to the
+  output directory) are optional.
 
-## Findings file
+Record what is **correct** as strengths, with evidence. Strengths prove
+coverage: "every handler in `routers/orders.py` checks ownership" shows the
+router was read.
 
-`findings.json` follows this shape:
-
-```json
-{
-  "lang": "en",
-  "title": "Security Audit Report",
-  "project": "acme-api",
-  "date": "2026-10-01",
-  "scope": "FastAPI backend in `src/`, React frontend in `web/`.",
-  "methodology": "Paragraphs separated by blank lines: the detected stack and how each category maps onto it.",
-  "categories": [
-    {"id": "idor", "title": "IDOR", "note": "Ownership is checked with a `get_owned_or_404` helper."},
-    {"id": "xss", "title": "XSS", "applies": false, "note": "no HTML rendering of user input"}
-  ],
-  "findings": [
-    {
-      "id": "F1",
-      "category": "idor",
-      "severity": "critical",
-      "title": "GET /invoices/{id} does not check the tenant",
-      "location": "src/api/invoices.py:42-47",
-      "snippet": "return db.query(Invoice).filter(Invoice.id == invoice_id).first()",
-      "language": "python",
-      "description": "What is wrong.",
-      "impact": "What an attacker or user can do, or what goes wrong.",
-      "fix": "The suggested fix.",
-      "conditions": "Any authenticated user."
-    }
-  ],
-  "strengths": [{"category": "idor", "text": "Every handler in the users router checks ownership.", "evidence": "src/api/users.py:10-80"}],
-  "risks": ["Tenant isolation depends on a manual filter in every query."],
-  "recommendations": [{"priority": "P1", "text": "What to do first.", "findings": ["F1"]}],
-  "issues": [
-    {
-      "title": "[Security] IDOR in GET /invoices/{id}",
-      "labels": ["security", "critical"],
-      "findings": ["F1"],
-      "summary": "The problem and why it matters.",
-      "acceptance": ["A request for another tenant's invoice returns 404", "A test covers it"]
-    }
-  ],
-  "inventory": {"title": "Route inventory", "columns": ["Method", "Path"], "rows": [["GET", "/invoices/{id}"]]}
-}
+```bash
+audit-findings -a webserver add strength <<'EOF'
+{"category": "idor", "text": "Every handler in the users router checks ownership.",
+ "evidence": "src/api/users.py:10-80"}
+EOF
 ```
 
-- Optional fields: `lang` (default `en`), `risks`, and `inventory`; `applies`
-  and `note` in categories; `snippet`, `language`, `conditions`, and
-  `screenshot` (a path relative to `findings.json`) in findings; `category` and
-  `evidence` in strengths; `labels` in issues (defaults to the severities of
-  the issue's findings).
-- `inventory` is the coverage table the audit skill asks you to build, or a
-  list of such tables when the skill asks for more than one. The renderer
-  prints them as an appendix.
+When the audit skill asks for a coverage table, declare it once and add rows
+as you go. Identical rows are merged when the report is built.
+
+```bash
+audit-findings -a webserver add inventory <<'EOF'
+{"id": "routes", "title": "Route inventory", "columns": ["Method", "Path"]}
+EOF
+audit-findings -a webserver add row <<'EOF'
+[{"table": "routes", "cells": ["GET", "/invoices/{id}"]}]
+EOF
+```
+
+To change a record, pass the fields to change to `update <id>`; `null`
+deletes an optional field. `remove <id>` deletes a record that nothing refers
+to. `list [kind] [--category C] [--severity S]` and `show <id>...` read
+records back.
+
+## Splitting the audit across agents
+
+For a large codebase, record the meta and the categories yourself, then give
+each subagent a set of category ids. Tell each subagent to:
+
+- invoke this skill and follow "Recording findings";
+- pass `--agent <its name>` to every command and run `start` and `done` for
+  its categories;
+- record findings, strengths, and inventory rows, but no risks,
+  recommendations, or issues;
+- reply with the ids it recorded and the categories it finished, not the
+  findings themselves.
+
+The log takes a lock on every write, so subagents can record at the same time.
+When they are done, run `status`, resolve the overlapping findings it lists,
+and write the synthesis below. A later session resumes the same way, from
+`status`.
+
+## Synthesis
+
+When every category is `done` or does not apply, write the parts that need the
+whole picture. `status` lists every finding with its id, severity, and title;
+use `show` for detail.
+
+```bash
+audit-findings -a webserver add risk <<'EOF'
+["Tenant isolation depends on a manual filter in every query."]
+EOF
+audit-findings -a webserver add recommendation <<'EOF'
+{"priority": "P1", "text": "What to do first.", "findings": ["F1"]}
+EOF
+audit-findings -a webserver add issue <<'EOF'
+{"title": "[Security] IDOR in GET /invoices/{id}", "labels": ["security", "critical"],
+ "findings": ["F1"], "summary": "The problem and why it matters.",
+ "acceptance": ["A request for another tenant's invoice returns 404", "A test covers it"]}
+EOF
+```
+
 - Each issue gets one actionable fix. Group related findings with the same fix
   into one issue, such as several default secrets, rather than filing one issue
   per line. Use the title prefix the audit skill defines. Acceptance criteria
-  are checkable statements.
+  are checkable statements. `labels` defaults to the severities of the issue's
+  findings.
 - The renderer composes each issue body from its findings: evidence, impact,
   and fix come from the findings, so write those fields to read well on their
   own.
+- `status` lists the findings that are in no issue. Every finding above `info`
+  should be in one.
 
 ## Rendering
 
-1. From the project root, check that every location and snippet exists in the
-   source:
+1. Render:
 
    ```bash
-   python3 <this-skill-dir>/scripts/check_findings.py docs/audits/<area>/findings.json
+   audit-findings -a <area> render
    ```
 
-   For each problem it reports, reread the code and correct the location or
-   the snippet; drop the finding if the code is not there. Run it again until
-   it prints `OK`.
-2. Run the renderer from this skill's directory:
-
-   ```bash
-   uv run --with reportlab --with pillow python <this-skill-dir>/scripts/render_report.py docs/audits/<area>/findings.json
-   ```
-
-   Without `uv`, create a virtual environment outside the project
-   (`python3 -m venv /tmp/audit-venv`), install `reportlab` and `pillow` in it,
-   and run the script with its Python. Install nothing globally.
-3. If the renderer reports problems in `findings.json`, fix each one and run
-   it again. Continue only when it writes the three files.
-4. Check the PDF visually: `pdftoppm -r 60 -png docs/audits/<area>/report.pdf /tmp/<area>-page`,
+   It checks every location and snippet against the source again, writes
+   `findings.json`, and renders it. For each problem it reports, reread the
+   code and `update` the finding, or `remove` it if the code is not there. Run
+   it again until it writes the report files.
+2. Check the PDF visually: `pdftoppm -r 60 -png docs/audits/<area>/report.pdf /tmp/<area>-page`,
    then look at every page. Fix what renders badly, such as snippets too long
-   to read, by editing `findings.json`, and render again. Deliver only when
-   every page reads cleanly.
+   to read, with `update`, and render again. Deliver only when every page
+   reads cleanly.
+
+To regenerate a report from a `findings.json` that has no log, run
+`audit-findings render <path>/findings.json`; add `--no-check` if the source
+has changed since. To continue such an audit, run `audit-findings import
+<path>/findings.json` first; it creates the log next to the file.
 
 ## Delivering
 

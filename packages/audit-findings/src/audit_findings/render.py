@@ -1,20 +1,10 @@
-#!/usr/bin/env python3
-"""Render an audit findings file into a PDF report and a Markdown file of issues.
-
-Usage:
-    uv run --with reportlab --with pillow python render_report.py FINDINGS_JSON
-
-Writes report.pdf, report.html, and issues.md next to FINDINGS_JSON. The file format is
-described in the audit-report skill's SKILL.md.
-"""
+"""Render a validated findings file into report.pdf, report.html, and issues.md."""
 
 from __future__ import annotations
 
 import base64
 import html
-import json
 import re
-import sys
 import textwrap
 from collections import Counter
 from pathlib import Path
@@ -43,7 +33,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-SEVERITIES = ["critical", "high", "medium", "low", "info"]
+from .schema import SEVERITIES, inventories
+
 COLORS = {
     "critical": "#B91C1C",
     "high": "#EA580C",
@@ -52,19 +43,7 @@ COLORS = {
     "info": "#6B7280",
     "strength": "#059669",
 }
-REQUIRED_FIELDS = [
-    "title",
-    "project",
-    "date",
-    "scope",
-    "methodology",
-    "categories",
-    "findings",
-    "strengths",
-    "recommendations",
-    "issues",
-]
-FINDING_FIELDS = ["id", "category", "severity", "title", "location", "description", "impact", "fix"]
+
 
 # A4 width (21 cm) minus 2 cm margins on each side.
 CONTENT_WIDTH = 17 * cm
@@ -143,40 +122,15 @@ LABELS = {
 }
 
 
-def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print(__doc__.strip(), file=sys.stderr)
-        return 2
-    findings_path = Path(argv[1]).resolve()
-    try:
-        data = json.loads(findings_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        print(f"error: {findings_path} does not exist", file=sys.stderr)
-        return 1
-    except json.JSONDecodeError as exc:
-        print(f"error: {findings_path} is not valid JSON: {exc}", file=sys.stderr)
-        return 1
-
-    errors = validate(data, findings_path.parent)
-    if errors:
-        print(f"error: {findings_path} has {len(errors)} problem(s):", file=sys.stderr)
-        for error in errors:
-            print(f"  - {error}", file=sys.stderr)
-        return 1
-
+def render_all(data: dict, out_dir: Path) -> list[Path]:
+    """Write the three deliverables next to the findings file and return their paths."""
     labels = LABELS[data.get("lang", "en")]
-    out_dir = findings_path.parent
     report = prepare(data)
-    (out_dir / "issues.md").write_text(render_issues(data, labels), encoding="utf-8")
-    (out_dir / "report.html").write_text(render_html(data, report, labels, out_dir), encoding="utf-8")
-    render_pdf(data, report, labels, out_dir / "report.pdf", out_dir)
-
-    counts = report["counts"]
-    summary = ", ".join(f"{counts[s]} {s}" for s in SEVERITIES if counts[s])
-    for name in ("report.pdf", "report.html", "issues.md"):
-        print(f"wrote {out_dir / name}")
-    print(f"{len(data['findings'])} findings ({summary or 'none'}), {len(data['issues'])} issues")
-    return 0
+    paths = [out_dir / "report.pdf", out_dir / "report.html", out_dir / "issues.md"]
+    paths[2].write_text(render_issues(data, labels), encoding="utf-8")
+    paths[1].write_text(render_html(data, report, labels, out_dir), encoding="utf-8")
+    render_pdf(data, report, labels, paths[0], out_dir)
+    return paths
 
 
 def prepare(data: dict) -> dict:
@@ -192,83 +146,6 @@ def prepare(data: dict) -> dict:
         "titles": {c["id"]: c["title"] for c in data["categories"]},
         "recommendations": sorted(data["recommendations"], key=lambda r: r["priority"]),
     }
-
-
-# Validation -----------------------------------------------------------------
-
-
-def validate(data: object, base_dir: Path) -> list[str]:
-    if not isinstance(data, dict):
-        return ["the top level must be a JSON object"]
-    errors = [f"missing required field '{key}'" for key in REQUIRED_FIELDS if key not in data]
-    if errors:
-        return errors
-
-    lang = data.get("lang", "en")
-    if lang not in LABELS:
-        errors.append(f"'lang' is '{lang}'; expected one of {sorted(LABELS)}")
-
-    category_ids = set()
-    for i, category in enumerate(data["categories"]):
-        for key in ("id", "title"):
-            if key not in category:
-                errors.append(f"categories[{i}] is missing '{key}'")
-        category_ids.add(category.get("id"))
-
-    finding_ids = set()
-    for i, finding in enumerate(data["findings"]):
-        where = f"findings[{i}] ({finding.get('id', '?')})"
-        missing = [key for key in FINDING_FIELDS if not finding.get(key)]
-        if missing:
-            errors.append(f"{where} is missing {', '.join(missing)}")
-        if finding.get("id") in finding_ids:
-            errors.append(f"{where} reuses id '{finding['id']}'")
-        finding_ids.add(finding.get("id"))
-        if finding.get("severity") not in SEVERITIES:
-            errors.append(f"{where} has severity '{finding.get('severity')}'; expected one of {SEVERITIES}")
-        if finding.get("category") not in category_ids:
-            errors.append(f"{where} has category '{finding.get('category')}', which is not in 'categories'")
-        screenshot = finding.get("screenshot")
-        if screenshot and not (base_dir / screenshot).is_file():
-            errors.append(f"{where} has screenshot '{screenshot}', which does not exist relative to {base_dir}")
-
-    for i, strength in enumerate(data["strengths"]):
-        if not strength.get("text"):
-            errors.append(f"strengths[{i}] is missing 'text'")
-        if strength.get("category") and strength["category"] not in category_ids:
-            errors.append(f"strengths[{i}] has category '{strength['category']}', which is not in 'categories'")
-
-    for section in ("recommendations", "issues"):
-        for i, item in enumerate(data[section]):
-            for ref in item.get("findings", []):
-                if ref not in finding_ids:
-                    errors.append(f"{section}[{i}] refers to finding '{ref}', which does not exist")
-    for i, rec in enumerate(data["recommendations"]):
-        for key in ("priority", "text"):
-            if not rec.get(key):
-                errors.append(f"recommendations[{i}] is missing '{key}'")
-    for i, issue in enumerate(data["issues"]):
-        for key in ("title", "findings", "summary", "acceptance"):
-            if not issue.get(key):
-                errors.append(f"issues[{i}] is missing '{key}'")
-
-    inventory = data.get("inventory")
-    if inventory is not None and not isinstance(inventory, (dict, list)):
-        errors.append("'inventory' must be an object or a list of objects")
-    for n, table in enumerate(inventories(data)):
-        name = "inventory" if isinstance(inventory, dict) else f"inventory[{n}]"
-        columns = table.get("columns", [])
-        for i, row in enumerate(table.get("rows", [])):
-            if len(row) != len(columns):
-                errors.append(f"{name}.rows[{i}] has {len(row)} cells; 'columns' has {len(columns)}")
-    return errors
-
-
-def inventories(data: dict) -> list[dict]:
-    """The coverage tables: `inventory` may hold one table or a list of tables."""
-    inventory = data.get("inventory")
-    tables = inventory if isinstance(inventory, list) else [inventory]
-    return [table for table in tables if isinstance(table, dict)]
 
 
 # Issues ---------------------------------------------------------------------
@@ -920,7 +797,3 @@ def render_html(data: dict, report: dict, labels: dict, base_dir: Path) -> str:
 </body>
 </html>
 """
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))

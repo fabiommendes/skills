@@ -18,13 +18,14 @@ Copy this checklist and track it:
 - [ ] 3. Build the task inventory
 - [ ] 4. Walk through every task
 - [ ] 5. Check every heuristic
-- [ ] 6. Write findings.json and render
+- [ ] 6. Synthesize and render
 ```
 
 ## 1. Load audit-report
 
-Invoke the `audit-report` skill now. It defines the findings file you fill in
-as you go. The area is `ux`; the issue title prefix is `[UX]`.
+Invoke the `audit-report` skill now and start or resume the log. It defines how
+you record findings as you go. The area is `ux`; the issue title prefix is
+`[UX]`.
 
 ## 2. Set up the interface
 
@@ -44,8 +45,8 @@ Save screenshots of findings in `docs/audits/ux/screenshots/`.
 List the tasks users come to do, from the navigation, routes, documentation,
 and the user's description: sign up, create the main object, find something,
 change settings, recover a password. Mark each as primary or secondary. Record
-one row per task in `inventory`: task, primary or secondary, entry point,
-number of steps, completed (yes, with workaround, no).
+one row per task in an inventory table: task, primary or secondary, entry
+point, number of steps, completed (yes, with workaround, no).
 
 ## 4. Walk through every task
 
@@ -99,10 +100,10 @@ the others are Nielsen's ten usability heuristics.
 | `low` | A minor or rare annoyance. |
 | `info` | An observation or improvement idea with no current problem. |
 
-## 6. Write findings.json and render
+## 6. Synthesize and render
 
-Fill `findings.json` as `audit-report` defines, with all eleven categories in
-`categories`, and render it. For each finding, put the screen or route and the
-steps to reproduce in `location` and `description`, the component's
-`file:line` in `fix` when you found the cause in code, and the screenshot in
-`screenshot`.
+Record all eleven categories, findings, and strengths as `audit-report`
+defines, write the synthesis, and render. For each finding, put the screen or
+route and the steps to reproduce in `location` and `description`, the
+component's `file:line` in `fix` when you found the cause in code, and the
+screenshot in `screenshot`.

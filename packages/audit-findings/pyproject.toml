@@ -1,0 +1,35 @@
+[project]
+name = "audit-findings"
+version = "0.1.0"
+description = "Record audit findings from parallel agents in an append-only log and render them as PDF, HTML, and GitHub issues."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Fábio Macêdo Mendes", email = "fabiomacedomendes@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = [
+    "filelock>=3.12",
+    "pillow>=10.0",
+    "reportlab>=4.0",
+]
+
+[project.urls]
+Repository = "https://github.com/fabiommendes/skills"
+
+[project.scripts]
+audit-findings = "audit_findings.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

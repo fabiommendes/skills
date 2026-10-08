@@ -1,26 +1,18 @@
-#!/usr/bin/env python3
-"""Check that the code locations and snippets in an audit findings.json exist.
+"""Check that the code locations and snippets cited by findings exist in the source.
 
-Usage: python3 check_findings.py <findings.json> [--root <project-dir>]
-
-For every finding, each `path:line` or `path:start-end` in `location` must name
-an existing file and lines inside it, and every line of `snippet` must appear in
+Each `path:line` or `path:start-end` in a finding's `location` must name an
+existing file and lines inside it, and every line of `snippet` must appear in
 the cited lines. Strength `evidence` gets the same location check. Locations
 that are not file paths (routes, screens) are skipped.
 
 Snippets may elide code with `...` (whole lines or inside a line), mask secrets
 with `****`, and join a statement split over up to three source lines.
 Whitespace is ignored when comparing.
-
-Exits with status 1 when a problem is found. Uses only the standard library.
 """
 
 from __future__ import annotations
 
-import argparse
-import json
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -70,6 +62,22 @@ def looks_like_file(token: str) -> bool:
     return "/" in token or bool(re.search(r"\.[A-Za-z0-9]{1,8}$", token))
 
 
+def overlaps(a: str, b: str) -> str | None:
+    """The first file range two locations share, as `path:start-end`, or None."""
+    refs_b, _ = parse_location(b)
+    for ref_a in parse_location(a)[0]:
+        for ref_b in refs_b:
+            if ref_a.path != ref_b.path:
+                continue
+            if not ref_a.ranges or not ref_b.ranges:
+                return ref_a.path
+            for start_a, end_a in ref_a.ranges:
+                for start_b, end_b in ref_b.ranges:
+                    if start_a <= end_b and start_b <= end_a:
+                        return f"{ref_a.path}:{max(start_a, start_b)}-{min(end_a, end_b)}"
+    return None
+
+
 def normalize(line: str) -> str:
     return re.sub(r"\s+", "", line)
 
@@ -94,7 +102,7 @@ def read_lines(path: Path) -> list[str] | None:
 
 class Checker:
     def __init__(self, root: Path):
-        self.root = root
+        self.root = root.resolve()
         self.cache: dict[str, list[str] | None] = {}
         self.errors: list[str] = []
         self.warnings: list[str] = []
@@ -106,13 +114,36 @@ class Checker:
             self.cache[path] = read_lines(file) if ok else None
         return self.cache[path]
 
+    def check(self, data: dict) -> None:
+        for finding in data.get("findings", []):
+            self.check_finding(f"finding {finding.get('id', '?')}", finding)
+        for index, strength in enumerate(data.get("strengths", []), start=1):
+            if isinstance(strength, dict):
+                self.check_strength(f"strength {index}", strength)
+
+    def check_finding(self, where: str, finding: dict) -> None:
+        refs, skipped = parse_location(str(finding.get("location", "")))
+        valid = self.check_refs(where, refs)
+        snippet = finding.get("snippet")
+        if not snippet:
+            return
+        if valid:
+            self.check_snippet(where, snippet, valid)
+        elif not refs:
+            self.warnings.append(f"{where}: snippet not checked; location has no file path ({' '.join(skipped)})")
+
+    def check_strength(self, where: str, strength: dict) -> None:
+        if strength.get("evidence"):
+            refs, _ = parse_location(str(strength["evidence"]))
+            self.check_refs(where, refs)
+
     def check_refs(self, where: str, refs: list[Ref]) -> list[Ref]:
         """Report missing files and out-of-range lines; return the valid refs."""
         valid = []
         for ref in refs:
             lines = self.lines(ref.path)
             if lines is None:
-                self.errors.append(f"{where}: file not found: {ref.path}")
+                self.errors.append(f"{where}: file not found: {ref.path} (relative to {self.root})")
                 continue
             bad = [(s, e) for s, e in ref.ranges if s < 1 or e < s or e > len(lines)]
             for start, end in bad:
@@ -154,50 +185,3 @@ class Checker:
             if number:
                 return f"{ref.path}:{number}"
         return None
-
-    def check(self, data: dict) -> None:
-        for finding in data.get("findings", []):
-            where = f"finding {finding.get('id', '?')}"
-            refs, skipped = parse_location(str(finding.get("location", "")))
-            valid = self.check_refs(where, refs)
-            snippet = finding.get("snippet")
-            if not snippet:
-                continue
-            if valid:
-                self.check_snippet(where, snippet, valid)
-            elif not refs:
-                self.warnings.append(f"{where}: snippet not checked; location has no file path ({' '.join(skipped)})")
-        for index, strength in enumerate(data.get("strengths", []), start=1):
-            evidence = strength.get("evidence") if isinstance(strength, dict) else None
-            if evidence:
-                refs, _ = parse_location(str(evidence))
-                self.check_refs(f"strength {index}", refs)
-
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("findings", type=Path)
-    parser.add_argument("--root", type=Path, default=Path.cwd(), help="project directory (default: current)")
-    args = parser.parse_args(argv)
-
-    try:
-        data = json.loads(args.findings.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"cannot read {args.findings}: {exc}", file=sys.stderr)
-        return 1
-
-    checker = Checker(args.root.resolve())
-    checker.check(data)
-    for warning in checker.warnings:
-        print(f"warning: {warning}")
-    for error in checker.errors:
-        print(f"error: {error}")
-    if checker.errors:
-        print(f"{len(checker.errors)} problem(s): fix the location or snippet from the source, or drop the finding.")
-        return 1
-    print(f"OK: {len(data.get('findings', []))} findings, locations and snippets match the source.")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))

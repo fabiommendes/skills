@@ -17,13 +17,14 @@ Copy this checklist and track it:
 - [ ] 3. Build the screen inventory
 - [ ] 4. Run the automated accessibility checks
 - [ ] 5. Check every category on every screen
-- [ ] 6. Write findings.json and render
+- [ ] 6. Synthesize and render
 ```
 
 ## 1. Load audit-report
 
-Invoke the `audit-report` skill now. It defines the findings file you fill in
-as you go. The area is `ui`; the issue title prefix is `[UI]`.
+Invoke the `audit-report` skill now and start or resume the log. It defines how
+you record findings as you go. The area is `ui`; the issue title prefix is
+`[UI]`.
 
 ## 2. Set up the interface
 
@@ -41,7 +42,7 @@ Save screenshots of findings in `docs/audits/ui/screenshots/`.
 ## 3. Build the screen inventory
 
 List every screen or page and the shared components and design tokens (colors,
-spacing, typography) they use. Record one row per screen in `inventory`:
+spacing, typography) they use. Record one row per screen in an inventory table:
 screen, route or entry point, shared components used, checked at desktop and
 mobile width (yes/no).
 
@@ -117,10 +118,10 @@ offers a dark or high-contrast theme, every screen and state checked in it.
 | `low` | A cosmetic inconsistency. |
 | `info` | An observation or improvement idea with no current problem. |
 
-## 6. Write findings.json and render
+## 6. Synthesize and render
 
-Fill `findings.json` as `audit-report` defines, with all eight categories in
-`categories`, and render it. For each finding, put the screen and the element
-in `location`, the WCAG success criterion in `title` when one applies, the
-component's `file:line` in `fix` when you found it in code, and a screenshot in
-`screenshot`.
+Record all eight categories, findings, and strengths as `audit-report` defines,
+write the synthesis, and render. For each finding, put the screen and the
+element in `location`, the WCAG success criterion in `title` when one applies,
+the component's `file:line` in `fix` when you found it in code, and a
+screenshot in `screenshot`.

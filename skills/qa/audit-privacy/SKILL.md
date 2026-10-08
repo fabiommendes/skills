@@ -22,13 +22,14 @@ Copy this checklist and track it:
 - [ ] 1. Load audit-report
 - [ ] 2. Build the personal data inventory
 - [ ] 3. Check every category
-- [ ] 4. Write findings.json and render
+- [ ] 4. Synthesize and render
 ```
 
 ## 1. Load audit-report
 
-Invoke the `audit-report` skill now. It defines the findings file you fill in
-as you go. The area is `privacy`; the issue title prefix is `[Privacy]`.
+Invoke the `audit-report` skill now and start or resume the log. It defines how
+you record findings as you go. The area is `privacy`; the issue title prefix is
+`[Privacy]`.
 
 ## 2. Build the personal data inventory
 
@@ -42,9 +43,9 @@ data also needs special care.
 
 Find personal data in database schemas and migrations, ORM models, API request
 and response types, forms, file uploads, analytics events, and log statements.
-Record one row per data item in `inventory`: data item, where it is stored
-(`table.column` or file), source, purpose found in code, sensitive (yes/no),
-third parties that receive it, and retention.
+Record one row per data item in an inventory table: data item, where it is
+stored (`table.column` or file), source, purpose found in code, sensitive
+(yes/no), third parties that receive it, and retention.
 
 ## 3. Categories
 
@@ -108,7 +109,8 @@ cloud regions and third-party providers in the configuration. Record these as
 | `low` | Minor minimization gaps, such as an API returning a non-sensitive field it does not need. |
 | `info` | Points for legal review, and observations with no risk on their own. |
 
-## 4. Write findings.json and render
+## 4. Synthesize and render
 
-Fill `findings.json` as `audit-report` defines, with all eight categories in
-`categories`, and render it. Mask personal data in snippets and screenshots.
+Record all eight categories, findings, and strengths as `audit-report` defines,
+write the synthesis, and render. Mask personal data in snippets and
+screenshots.

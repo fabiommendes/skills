@@ -16,13 +16,14 @@ Copy this checklist and track it:
 - [ ] 2. Build the dependency inventory
 - [ ] 3. Run the vulnerability scanners
 - [ ] 4. Check every category
-- [ ] 5. Write findings.json and render
+- [ ] 5. Synthesize and render
 ```
 
 ## 1. Load audit-report
 
-Invoke the `audit-report` skill now. It defines the findings file you fill in
-as you go. The area is `dependencies`; the issue title prefix is `[Deps]`.
+Invoke the `audit-report` skill now and start or resume the log. It defines how
+you record findings as you go. The area is `dependencies`; the issue title
+prefix is `[Deps]`.
 
 ## 2. Build the dependency inventory
 
@@ -33,8 +34,8 @@ Find every manifest and lockfile: `package.json` with `package-lock.json`,
 Dockerfiles (`FROM` lines); CI workflows (`uses:` lines); and vendored or
 copied third-party code.
 
-Record one row per manifest in `inventory`: path, ecosystem, lockfile present
-and in sync, number of direct production and development dependencies.
+Record one row per manifest in an inventory table: path, ecosystem, lockfile
+present and in sync, number of direct production and development dependencies.
 
 ## 3. Run the vulnerability scanners
 
@@ -50,7 +51,8 @@ Run the scanner for each ecosystem, from the project directory:
 
 Report vulnerabilities only from scanner output or an advisory you looked up.
 Never cite a CVE from memory. If no scanner can run (no network, no tool), say
-so in `methodology` and mark the category's coverage as partial.
+so in `methodology` and say in the category's `note` that its coverage is
+partial.
 
 For each vulnerability, check reachability: is the vulnerable package used in
 production code, and is the vulnerable function or feature called? Record the
@@ -113,10 +115,10 @@ distributed before rating these; without an answer, rate them `info`.
 | `low` | Unused or duplicated dependencies, deprecated packages without known vulnerabilities. |
 | `info` | License observations and maintenance notes. |
 
-## 5. Write findings.json and render
+## 5. Synthesize and render
 
-Fill `findings.json` as `audit-report` defines, with all seven categories in
-`categories`, and render it. For vulnerabilities, put the advisory ID, installed
-version, and fixed version in the finding's `title` or `description`, and the
-manifest path in `location`. Group upgrades that one command fixes into a
-single issue.
+Record all seven categories, findings, and strengths as `audit-report` defines,
+write the synthesis, and render. For vulnerabilities, put the advisory ID,
+installed version, and fixed version in the finding's `title` or `description`,
+and the manifest path in `location`. Group upgrades that one command fixes into
+a single issue.

@@ -21,13 +21,14 @@ Copy this checklist and track it:
 - [ ] 2. Detect the stack
 - [ ] 3. Build the route inventory
 - [ ] 4. Check every category
-- [ ] 5. Write findings.json and render
+- [ ] 5. Synthesize and render
 ```
 
 ## 1. Load audit-report
 
-Invoke the `audit-report` skill now. It defines the findings file you fill in
-as you go. The area is `webserver`; the issue title prefix is `[Security]`.
+Invoke the `audit-report` skill now and start or resume the log. It defines how
+you record findings as you go. The area is `webserver`; the issue title prefix
+is `[Security]`.
 
 ## 2. Detect the stack
 
@@ -44,8 +45,9 @@ authentication required, role or permission checked, and ownership or tenant
 check. Find routes where the framework registers them, not by sampling files:
 router calls and decorators in code, or the specification file for spec-first
 frameworks (OpenAPI `operationId` in Connexion, API gateway configs). Count the
-registrations to confirm the inventory is complete. Store it as `inventory` in
-`findings.json`. Categories 1 to 4 are checked against it, row by row.
+registrations to confirm the inventory is complete. Record it as an inventory
+table with one row per route. Categories 1 to 4 are checked against it, row by
+row.
 
 ## 4. Categories
 
@@ -163,8 +165,8 @@ listing.
 | `low` | A defense-in-depth gap with no direct exploit path. |
 | `info` | An observation with no risk on its own. |
 
-## 5. Write findings.json and render
+## 5. Synthesize and render
 
-Rate each finding by its own exploit path, with the conditions in
-`conditions`. Fill `findings.json` as `audit-report` defines, with all twelve
-categories in `categories`, and render it. Deliver as `audit-report` describes.
+Rate each finding by its own exploit path, with the conditions in `conditions`.
+Record all twelve categories, findings, and strengths as `audit-report`
+defines, write the synthesis, and render. Deliver as `audit-report` describes.
