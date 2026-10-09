@@ -1,6 +1,6 @@
 [project]
 name = "audit-findings"
-version = "0.3.0"
+version = "0.3.1"
 description = "Record audit findings from parallel agents in an append-only log and render them as PDF, HTML, and GitHub issues."
 readme = "README.md"
 license = "MIT"

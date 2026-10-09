@@ -540,13 +540,14 @@ def status_text(state: State, log: Log) -> str:
     per_category = Counter(f.data["category"] for f in findings)
     strengths = Counter(s.data.get("category") for s in state.of("strength"))
     progress = Counter()
+    width = max([14, *(len(c.id) for c in state.of("category"))])
     for category in state.of("category"):
         data = category.data
         mark = "n/a" if data.get("applies") is False else data.get("status", "todo")
         progress[mark] += 1
         who = f"  ({category.agent})" if mark == "doing" and category.agent else ""
         lines.append(
-            f"  {category.id:<14} {mark:<5} {per_category[category.id]} findings, "
+            f"  {category.id:<{width}} {mark:<5} {per_category[category.id]} findings, "
             f"{strengths[category.id]} strengths{who}"
         )
     if not state.of("category"):

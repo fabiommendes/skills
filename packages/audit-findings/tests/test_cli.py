@@ -203,6 +203,13 @@ def test_status_shows_progress_and_findings(audit):
     assert "to review" not in out
 
 
+def test_status_aligns_long_category_ids(audit):
+    audit("add", "category", stdin={"id": "underspecification", "title": "Underspecification"})
+    out = audit("status")[1]
+    assert "idor               todo" in out
+    assert "underspecification todo" in out
+
+
 def test_render_writes_the_deliverables(audit, project):
     audit("add", "finding", stdin=finding())
     audit("add", "strength", stdin={"category": "idor", "text": "Users are scoped.", "evidence": "src/api.py:6-7"})

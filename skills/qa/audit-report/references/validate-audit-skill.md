@@ -8,6 +8,12 @@ Read `../SKILL.md` (the `audit-report` skill) first. It is the contract the
 audit skill must follow; every check below refers to it. Then read the audit
 skill's `SKILL.md` in full.
 
+Some audit skills branch: `SKILL.md` routes to one document per part (such as
+`spec.md`, `py.md`, `js.md`), and each part holds its own checklist and steps.
+Validate the part the user names, reading it with `SKILL.md`. Apply check 1 to
+`SKILL.md` and the other checks to the part; cite failures as `<file>:line`.
+Each part gives its own area and issue title prefix in its step 1.
+
 ## What to check
 
 Check every item and note each failure with its `SKILL.md:line`.
@@ -31,6 +37,10 @@ Check every item and note each failure with its `SKILL.md:line`.
   `<n>. Synthesize and render`.
 - Every checklist item has a matching `## <n>. <title>` section with the same
   number and title, in the same order.
+- A precondition that can stop the audit before it starts, such as a script
+  that must pass, sits before the checklist (for example under
+  `## Before you start`), not as a numbered step ahead of
+  `1. Load audit-report`.
 
 ### 3. Loading audit-report
 
@@ -51,6 +61,10 @@ optional, or describes the recording rules itself instead of deferring to
   `### 3. IDOR (`idor`)` or `1. **Task completion (`tasks`):**`. Ids are
   lowercase, use only letters, digits, and hyphens, and are unique within the
   skill.
+- The categories are listed in one place. Every category a step mentions,
+  such as "(category: x)", is in that list, and every kind of flaw a step
+  asks the agent or a subagent to record maps to a category. A flaw with no
+  category makes the agent invent one, and `add` refuses it.
 - The final step states the number of categories in words ("all ten
   categories"), and the number matches the categories listed.
 - When a category can be not applicable, the skill says so rather than
@@ -61,6 +75,9 @@ optional, or describes the recording rules itself instead of deferring to
 
 - A `## Severity` table defines exactly the five levels `critical`, `high`,
   `medium`, `low`, and `info`, each with a meaning specific to this audit.
+- The table comes before the first step that records findings, and every
+  subagent brief passes it on. A table inside the synthesis step comes too
+  late: findings are already recorded with a severity.
 
 ### 6. Inventory
 
@@ -116,7 +133,27 @@ Fail the skill if it:
 - tells subagents to record risks, recommendations, or issues; those belong
   to the main agent's synthesis.
 
-### 10. Screenshots
+### 10. Subagents
+
+When the skill spawns subagents:
+
+- each brief points to "Splitting the audit across agents" in `audit-report`
+  rather than restating the recording rules;
+- a split by part rather than by category (one subagent per document or
+  module) tells the subagent to skip `start` and `done`, as `audit-report`
+  describes;
+- the main agent reviews their findings as "Reviewing subagent findings"
+  describes before the synthesis.
+
+### 11. Editing the audited source
+
+When the skill tells the agent to edit the files it audits, such as fixing
+typos in a specification, recorded locations and snippets can go stale. The
+skill must keep line numbers stable, or tell the agent to run
+`audit-findings check` after each round of edits and `update` the findings it
+reports.
+
+### 12. Screenshots
 
 When the audit needs screenshots (interface audits), the skill saves them in
 `docs/audits/<area>/screenshots/` and puts the path relative to

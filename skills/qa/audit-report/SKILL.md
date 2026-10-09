@@ -9,10 +9,10 @@ Every `audit-*` skill records its results with the `audit-findings` command
 line and renders them with it. The audit skill decides what to look for; this
 skill decides how findings are recorded and delivered.
 
-Run every command as `uvx audit-findings@0.3.0 <command>`, from the project
+Run every command as `uvx audit-findings@0.3.1 <command>`, from the project
 root. Below, that prefix is shortened to `audit-findings`. Without `uv`, create
 a virtual environment outside the project (`python3 -m venv /tmp/audit-venv`),
-install `audit-findings==0.3.0` in it, and run its `audit-findings`. Install
+install `audit-findings==0.3.1` in it, and run its `audit-findings`. Install
 nothing globally.
 
 ## Output directory
@@ -147,6 +147,11 @@ each subagent a set of category ids. Tell each subagent to:
   recommendations, or issues;
 - reply with the ids it recorded and the categories it finished, not the
   findings themselves.
+
+When the audit skill splits the work by part instead (one subagent per module
+or document, each looking for several categories), give each subagent its
+part and the categories to look for. It skips `start` and `done`; you run
+`done` for each category once every part is reviewed.
 
 The log takes a lock on every write, so subagents can record at the same time.
 The agent name is a free label: the log stores it with every change, `show`
