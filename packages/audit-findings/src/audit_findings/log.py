@@ -4,9 +4,11 @@ Each line of `findings.jsonl` is one event:
 
     {"op": "add", "type": "finding", "id": "F3", "data": {...}, "agent": "a1", "ts": "..."}
     {"op": "update", "id": "F3", "data": {"severity": "high"}, ...}
-    {"op": "remove", "id": "F3", ...}
+    {"op": "remove", "id": "F3", "reason": "duplicate of F1", ...}
+    {"op": "accept", "id": "F3", ...}
 
-Updates merge into the record; a `null` value deletes the field. Writers hold
+Updates merge into the record; a `null` value deletes the field. `accept`
+marks a record as reviewed until the next update. Writers hold
 an exclusive lock on `findings.jsonl.lock` from reading the log to appending,
 so ids stay unique across parallel agents.
 """
@@ -34,11 +36,28 @@ class LogError(Exception):
 
 
 @dataclass
+class Change:
+    op: str
+    agent: str | None
+    ts: str | None
+    reason: str | None = None
+
+
+@dataclass
 class Record:
     kind: str
     id: str
     data: dict
+    # The last agent that changed the record.
     agent: str | None = None
+    history: list[Change] = field(default_factory=list)
+    accepted: bool = False
+    # Why the record was removed; set only on removed records.
+    reason: str | None = None
+
+    @property
+    def creator(self) -> str | None:
+        return self.history[0].agent if self.history else None
 
 
 @dataclass
@@ -46,23 +65,34 @@ class State:
     records: dict[str, Record] = field(default_factory=dict)
     # Every id ever used, including removed ones, so numbers are never reused.
     used: set[str] = field(default_factory=set)
+    removed: dict[str, Record] = field(default_factory=dict)
 
     def apply(self, event: dict) -> None:
         op, rid = event["op"], event["id"]
+        change = Change(op, event.get("agent"), event.get("ts"), event.get("reason"))
         if op == "add":
-            self.records[rid] = Record(event["type"], rid, dict(event["data"]), event.get("agent"))
+            self.records[rid] = Record(event["type"], rid, dict(event["data"]), change.agent, [change])
             self.used.add(rid)
-        elif op == "update":
-            record = self.records[rid]
+            self.removed.pop(rid, None)
+            return
+        record = self.records[rid]
+        record.history.append(change)
+        if change.agent:
+            record.agent = change.agent
+        if op == "update":
             for key, value in event["data"].items():
                 if value is None:
                     record.data.pop(key, None)
                 else:
                     record.data[key] = value
-            if event.get("agent"):
-                record.agent = event["agent"]
+            record.accepted = False
+        elif op == "accept":
+            record.accepted = True
         elif op == "remove":
-            del self.records[rid]
+            record.reason = change.reason
+            self.removed[rid] = self.records.pop(rid)
+        else:
+            raise KeyError(f"unknown op '{op}'")
 
     def of(self, kind: str) -> list[Record]:
         return [r for r in self.records.values() if r.kind == kind]
@@ -189,12 +219,16 @@ class Writer:
         self.dir = directory
         self.events: list[dict] = []
 
-    def emit(self, op: str, rid: str, data: dict | None = None, kind: str | None = None) -> None:
+    def emit(
+        self, op: str, rid: str, data: dict | None = None, kind: str | None = None, reason: str | None = None
+    ) -> None:
         event: dict = {"op": op, "id": rid}
         if kind:
             event["type"] = kind
         if data is not None:
             event["data"] = data
+        if reason:
+            event["reason"] = reason
         if self.agent:
             event["agent"] = self.agent
         event["ts"] = datetime.now(timezone.utc).isoformat(timespec="seconds")

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from . import __version__
 from .check import Checker, overlaps
-from .log import LOG_NAME, Log, LogError, State, Writer
+from .log import LOG_NAME, Log, LogError, Record, State, Writer
 from .schema import (
     CATEGORY_STATUSES,
     META_ID,
@@ -70,9 +70,17 @@ def parser() -> argparse.ArgumentParser:
     c = sub.add_parser("update", help="merge a JSON object on stdin into a record; null deletes a field")
     c.add_argument("id", help="record id, or 'meta'")
     c.set_defaults(func=cmd_update)
-    c = sub.add_parser("remove", help="remove records")
+    c = sub.add_parser("remove", help="remove records, saying why")
     c.add_argument("ids", nargs="+")
+    c.add_argument("--reason", required=True, help="why, such as 'duplicate of F1' or 'code is not reachable'")
     c.set_defaults(func=cmd_remove)
+    c = sub.add_parser("merge", help="fold a duplicate finding into another and remove it")
+    c.add_argument("duplicate")
+    c.add_argument("into")
+    c.set_defaults(func=cmd_merge)
+    c = sub.add_parser("accept", help="mark records as reviewed")
+    c.add_argument("ids", nargs="+")
+    c.set_defaults(func=cmd_accept)
     for name, status in (("start", "doing"), ("done", "done"), ("reopen", "todo")):
         c = sub.add_parser(name, help=f"mark categories as {status}")
         c.add_argument("ids", nargs="+")
@@ -83,8 +91,11 @@ def parser() -> argparse.ArgumentParser:
     c.add_argument("kind", nargs="?", choices=kinds)
     c.add_argument("--category")
     c.add_argument("--severity", choices=SEVERITIES)
+    c.add_argument("--agent", dest="by", metavar="AGENT", help="only records this agent created")
+    c.add_argument("--to-review", action="store_true", help="only records subagents created and nobody accepted")
+    c.add_argument("--removed", action="store_true", help="list removed records and why")
     c.set_defaults(func=cmd_list)
-    c = sub.add_parser("show", help="print records as JSON")
+    c = sub.add_parser("show", help="print records as JSON, with who changed them")
     c.add_argument("ids", nargs="+")
     c.set_defaults(func=cmd_show)
     c = sub.add_parser("check", help="check every location and snippet against the source")
@@ -188,8 +199,37 @@ def cmd_remove(args: argparse.Namespace) -> int:
             referrers = writer.state.referrers(rid)
             if referrers:
                 raise UsageError(f"{rid} is referenced by {', '.join(referrers)}; update or remove those first")
-            writer.emit("remove", rid)
+            writer.emit("remove", rid, reason=args.reason)
     print(f"removed {', '.join(args.ids)}")
+    return 0
+
+
+def cmd_merge(args: argparse.Namespace) -> int:
+    with open_log(args).writing(args.agent) as writer:
+        state = writer.state
+        duplicate, into = get(state, args.duplicate), get(state, args.into)
+        if duplicate.kind != "finding" or into.kind != "finding" or duplicate.id == into.id:
+            raise UsageError("merge takes two different findings")
+        for referrer in state.referrers(duplicate.id):
+            refs = state.records[referrer].data["findings"]
+            retargeted = list(dict.fromkeys(into.id if ref == duplicate.id else ref for ref in refs))
+            writer.emit("update", referrer, {"findings": retargeted})
+        writer.emit("remove", duplicate.id, reason=f"duplicate of {into.id}")
+    print(f"merged {duplicate.id} into {into.id}")
+    if duplicate.data["location"] != into.data["location"]:
+        print(f"{duplicate.id} location: {duplicate.data['location']}")
+        print(f"{into.id} location: {into.data['location']}")
+        print(f"if {into.id} misses places {duplicate.id} cited, add them with `update {into.id}`")
+    return 0
+
+
+def cmd_accept(args: argparse.Namespace) -> int:
+    with open_log(args).writing(args.agent) as writer:
+        for rid in args.ids:
+            if get(writer.state, rid).kind == "meta":
+                raise UsageError("cannot accept meta")
+            writer.emit("accept", rid)
+    print(f"accepted {', '.join(args.ids)}")
     return 0
 
 
@@ -213,22 +253,32 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_list(args: argparse.Namespace) -> int:
     with open_log(args).reading() as state:
-        for record in state.records.values():
+        records = state.removed if args.removed else state.records
+        for record in records.values():
             if record.kind == "meta" or (args.kind and record.kind != args.kind):
                 continue
             if args.category and record.data.get("category") != args.category:
                 continue
             if args.severity and record.data.get("severity") != args.severity:
                 continue
-            print(summary_line(record.kind, record.id, record.data))
+            if args.by and record.creator != args.by:
+                continue
+            if args.to_review and not to_review(record):
+                continue
+            print(summary_line(record))
     return 0
 
 
 def cmd_show(args: argparse.Namespace) -> int:
     with open_log(args).reading() as state:
-        records = [get(state, rid) for rid in args.ids]
+        records = [get(state, rid, removed=True) for rid in args.ids]
     for record in records:
-        print(json.dumps({"id": record.id, "type": record.kind, **record.data}, ensure_ascii=False, indent=2))
+        shown = {"id": record.id, "type": record.kind, **record.data}
+        if record.reason:
+            shown["removed"] = record.reason
+        shown["accepted"] = record.accepted
+        shown["history"] = [{k: v for k, v in vars(c).items() if v} for c in record.history]
+        print(json.dumps(shown, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -301,10 +351,19 @@ def read_stdin(optional: bool = False) -> dict | list:
         raise UsageError(f"stdin is not valid JSON: {exc}") from exc
 
 
-def get(state: State, rid: str):
-    if rid not in state.records:
-        raise UsageError(f"no record '{rid}'; run `audit-findings list` to see the ids")
-    return state.records[rid]
+def get(state: State, rid: str, removed: bool = False) -> Record:
+    if rid in state.records:
+        return state.records[rid]
+    if removed and rid in state.removed:
+        return state.removed[rid]
+    if rid in state.removed:
+        raise UsageError(f"{rid} was removed ({state.removed[rid].reason}); `show {rid}` prints it")
+    raise UsageError(f"no record '{rid}'; run `audit-findings list` to see the ids")
+
+
+def to_review(record: Record) -> bool:
+    """Findings and strengths a subagent recorded that nobody accepted since their last change."""
+    return record.kind in ("finding", "strength") and record.creator is not None and not record.accepted
 
 
 def add_record(
@@ -358,7 +417,14 @@ def check_record(
             if shared:
                 warnings.append(
                     f"{rid} overlaps {other.id} at {shared} ({other.data['title']}); "
-                    f"if it is the same defect, merge them with `update {other.id}` and `remove {rid}`"
+                    f"if it is the same defect, run `merge {rid} {other.id}`"
+                )
+        for other in state.removed.values():
+            shared = other.kind == "finding" and overlaps(data["location"], other.data["location"])
+            if shared:
+                warnings.append(
+                    f"{rid} overlaps {other.id} at {shared}, removed earlier ({other.reason}); "
+                    f"if the same reason applies, remove {rid}"
                 )
     return warnings
 
@@ -404,7 +470,14 @@ def report_check(report: dict, root: Path) -> int:
 # Output -----------------------------------------------------------------------
 
 
-def summary_line(kind: str, rid: str, data: dict) -> str:
+def summary_line(record: Record) -> str:
+    line = record_line(record.kind, record.id, record.data)
+    if record.reason:
+        line += f"  -- removed: {record.reason}"
+    return line + (f"  (by {record.creator})" if record.creator else "")
+
+
+def record_line(kind: str, rid: str, data: dict) -> str:
     if kind == "finding":
         return f"{rid}  {data['severity']:<8}  {data['category']:<14}  {data['title']}  [{data['location']}]"
     if kind == "category":
@@ -460,7 +533,7 @@ def status_text(state: State, log: Log) -> str:
 
     if findings:
         lines.append("findings:")
-        lines += [f"  {summary_line('finding', f.id, f.data)}" for f in findings]
+        lines += [f"  {summary_line(f)}" for f in findings]
     in_issues = {ref for issue in state.of("issue") for ref in issue.data["findings"]}
     orphans = [f.id for f in findings if f.id not in in_issues]
     if orphans and state.of("issue"):
@@ -473,4 +546,9 @@ def status_text(state: State, log: Log) -> str:
                 pairs.append(f"{a.id}/{b.id} at {shared}")
     if pairs:
         lines.append(f"overlapping findings (possible duplicates): {'; '.join(pairs)}")
+    pending_review = [f"{r.id} ({r.creator})" for r in state.records.values() if to_review(r)]
+    if pending_review:
+        lines.append(f"to review: {', '.join(pending_review)}")
+    if state.removed:
+        lines.append(f"removed: {', '.join(f'{r.id} ({r.reason})' for r in state.removed.values())}")
     return "\n".join(lines)

@@ -133,15 +133,62 @@ def test_update_validates_the_merged_record(audit):
 def test_remove_refuses_referenced_records(audit):
     audit("add", "finding", stdin=finding())
     audit("add", "recommendation", stdin={"priority": "P1", "text": "Fix it.", "findings": ["F1"]})
-    code, _, err = audit("remove", "F1")
+    code, _, err = audit("remove", "F1", "--reason", "invalid")
     assert code == 1
     assert "referenced by REC1" in err
 
 
 def test_removed_ids_are_not_reused(audit):
     audit("add", "finding", stdin=finding())
-    audit("remove", "F1")
-    assert audit("add", "finding", stdin=finding())[1].split() == ["F2"]
+    audit("remove", "F1", "--reason", "invalid")
+    assert audit("add", "finding", stdin=finding())[1].split()[0] == "F2"
+
+
+def test_review_flow(audit):
+    audit("--agent", "a1", "add", "finding", stdin=finding())
+    audit("--agent", "a2", "add", "finding", stdin=finding(title="Same", location="src/api.py:3"))
+    audit("--agent", "a2", "add", "finding", stdin=finding(title="Bogus", location="src/api.py:6-7", snippet=""))
+    audit("add", "issue", stdin={"title": "T", "findings": ["F2"], "summary": "S", "acceptance": ["A"]})
+
+    assert "to review: F1 (a1), F2 (a2), F3 (a2)" in audit("status")[1]
+    assert audit("list", "--agent", "a2")[1].count("(by a2)") == 2
+
+    out = audit("merge", "F2", "F1")[1]
+    assert "merged F2 into F1" in out
+    assert json.loads(audit("show", "I1")[1])["findings"] == ["F1"]
+    audit("remove", "F3", "--reason", "code is not reachable")
+    audit("accept", "F1")
+
+    status = audit("status")[1]
+    assert "to review" not in status
+    assert "removed: F2 (duplicate of F1), F3 (code is not reachable)" in status
+    assert "F3" in audit("list", "--removed")[1]
+    shown = json.loads(audit("show", "F2")[1])
+    assert shown["removed"] == "duplicate of F1"
+    assert [c["op"] for c in shown["history"]] == ["add", "remove"]
+    assert shown["history"][0]["agent"] == "a2"
+
+
+def test_update_after_accept_needs_review_again(audit):
+    audit("--agent", "a1", "add", "finding", stdin=finding())
+    audit("accept", "F1")
+    audit("--agent", "a1", "update", "F1", stdin={"severity": "high"})
+    assert audit("list", "--to-review")[1].startswith("F1")
+
+
+def test_add_warns_when_overlapping_a_removed_finding(audit):
+    audit("add", "finding", stdin=finding())
+    audit("remove", "F1", "--reason", "false positive")
+    out = audit("add", "finding", stdin=finding())[1]
+    assert "F2 overlaps F1 at src/api.py:1-3, removed earlier (false positive)" in out
+
+
+def test_removed_records_are_not_editable(audit):
+    audit("add", "finding", stdin=finding())
+    audit("remove", "F1", "--reason", "invalid")
+    code, _, err = audit("update", "F1", stdin={"severity": "low"})
+    assert code == 1
+    assert "F1 was removed (invalid)" in err
 
 
 def test_status_shows_progress_and_findings(audit):
@@ -153,6 +200,7 @@ def test_status_shows_progress_and_findings(audit):
     assert "idor           doing 1 findings, 0 strengths  (a1)" in out
     assert "xss            done" in out
     assert "F1  critical" in out
+    assert "to review" not in out
 
 
 def test_render_writes_the_deliverables(audit, project):

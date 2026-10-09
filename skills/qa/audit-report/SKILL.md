@@ -9,10 +9,10 @@ Every `audit-*` skill records its results with the `audit-findings` command
 line and renders them with it. The audit skill decides what to look for; this
 skill decides how findings are recorded and delivered.
 
-Run every command as `uvx audit-findings@0.1.0 <command>`, from the project
+Run every command as `uvx audit-findings@0.2.0 <command>`, from the project
 root. Below, that prefix is shortened to `audit-findings`. Without `uv`, create
 a virtual environment outside the project (`python3 -m venv /tmp/audit-venv`),
-install `audit-findings==0.1.0` in it, and run its `audit-findings`. Install
+install `audit-findings==0.2.0` in it, and run its `audit-findings`. Install
 nothing globally.
 
 ## Output directory
@@ -86,7 +86,8 @@ EOF
 - One finding per distinct defect. The same mistake repeated in several places
   is one finding whose `location` lists every place. When `add` warns that a
   finding overlaps another, read both with `show`; if they are the same
-  defect, merge them with `update` and `remove` the new one.
+  defect, run `merge <new id> <old id>`. When it warns that a finding overlaps
+  one removed earlier, read the reason and remove the new one if it applies.
 - Give the exact location: `path:line` or `path:start-end` for code; route or
   screen plus the steps to reach it for interface findings.
 - Quote the offending code in `snippet`, trimmed to the lines that show the
@@ -124,9 +125,10 @@ EOF
 ```
 
 To change a record, pass the fields to change to `update <id>`; `null`
-deletes an optional field. `remove <id>` deletes a record that nothing refers
-to. `list [kind] [--category C] [--severity S]` and `show <id>...` read
-records back.
+deletes an optional field. `remove <id> --reason "..."` deletes a record that
+nothing refers to; the reason stays in the log, and `list --removed` shows it.
+`list [kind] [--category C] [--severity S]` and `show <id>...` read records
+back.
 
 ## Splitting the audit across agents
 
@@ -134,17 +136,37 @@ For a large codebase, record the meta and the categories yourself, then give
 each subagent a set of category ids. Tell each subagent to:
 
 - invoke this skill and follow "Recording findings";
-- pass `--agent <its name>` to every command and run `start` and `done` for
-  its categories;
+- pass `--agent <its name>` to every command, with the name you gave it, and
+  run `start` and `done` for its categories;
 - record findings, strengths, and inventory rows, but no risks,
   recommendations, or issues;
 - reply with the ids it recorded and the categories it finished, not the
   findings themselves.
 
 The log takes a lock on every write, so subagents can record at the same time.
-When they are done, run `status`, resolve the overlapping findings it lists,
-and write the synthesis below. A later session resumes the same way, from
-`status`.
+The agent name is a free label: the log stores it with every change, `show`
+prints who changed a record and when, and `list --agent <name>` filters by the
+agent that created it. It never reaches the report. Do not pass `--agent`
+yourself.
+
+### Reviewing subagent findings
+
+`status` lists under "to review" every finding and strength a subagent
+recorded that you have not accepted yet. Review each one before the synthesis:
+
+1. Read it with `show <id>` and reread the cited code.
+2. Keep it with `accept <id>`, after fixing it with `update <id>` if needed.
+   A later `update` by anyone sends it back to review.
+3. Fold a duplicate into the finding it repeats with `merge <duplicate>
+   <kept>`: references in issues and recommendations move to the kept finding.
+   Then `update` the kept finding if the duplicate cited places it misses.
+4. Drop a finding that is wrong, unverified, or out of scope with
+   `remove <id> --reason "..."`. The reason stays in the log and is shown when
+   an agent later records a finding at the same place.
+
+Resolve the overlapping findings `status` lists the same way. Continue to the
+synthesis when nothing is left to review. A later session resumes the same
+way, from `status`.
 
 ## Synthesis
 
@@ -187,7 +209,8 @@ EOF
 
    It checks every location and snippet against the source again, writes
    `findings.json`, and renders it. For each problem it reports, reread the
-   code and `update` the finding, or `remove` it if the code is not there. Run
+   code and `update` the finding, or `remove` it with a reason if the code is
+   not there. Run
    it again until it writes the report files.
 2. Check the PDF visually: `pdftoppm -r 60 -png docs/audits/<area>/report.pdf /tmp/<area>-page`,
    then look at every page. Fix what renders badly, such as snippets too long
