@@ -62,6 +62,7 @@ omitted when the project holds a single log.
 | `accept ID...` | Mark records as reviewed; a later update clears the mark. |
 | `start`, `done`, `reopen` | Track progress per category. |
 | `status`, `list`, `show` | Read the log; `show` includes who changed a record and when. |
+| `coverage [--all]` | List findings that no issue or no recommendation refers to; fails if any. |
 | `check` | Check every location and snippet against the source again. |
 | `build` | Validate and write `findings.json`. |
 | `render [FILE]` | Build, then write `report.pdf`, `report.html`, `issues.md`. |

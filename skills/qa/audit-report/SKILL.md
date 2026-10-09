@@ -9,10 +9,10 @@ Every `audit-*` skill records its results with the `audit-findings` command
 line and renders them with it. The audit skill decides what to look for; this
 skill decides how findings are recorded and delivered.
 
-Run every command as `uvx audit-findings@0.2.0 <command>`, from the project
+Run every command as `uvx audit-findings@0.3.0 <command>`, from the project
 root. Below, that prefix is shortened to `audit-findings`. Without `uv`, create
 a virtual environment outside the project (`python3 -m venv /tmp/audit-venv`),
-install `audit-findings==0.2.0` in it, and run its `audit-findings`. Install
+install `audit-findings==0.3.0` in it, and run its `audit-findings`. Install
 nothing globally.
 
 ## Output directory
@@ -46,6 +46,11 @@ audit-findings -a webserver add category <<'EOF'
  {"id": "xss", "title": "XSS", "applies": false, "note": "no HTML rendering of user input"}]
 EOF
 ```
+
+Use the category ids and titles the audit skill gives, and record every
+category, even the ones that do not apply: mark those with `"applies": false`
+and the reason in `note`. A category whose coverage is partial says so in
+`note`.
 
 Write all text in one language and set `lang` to `en` or `pt`. `date` defaults
 to today. Set `methodology` once you know it: paragraphs separated by blank
@@ -196,8 +201,10 @@ EOF
 - The renderer composes each issue body from its findings: evidence, impact,
   and fix come from the findings, so write those fields to read well on their
   own.
-- `status` lists the findings that are in no issue. Every finding above `info`
-  should be in one.
+- Every finding above `info` must be in an issue and a recommendation. Check it
+  with `audit-findings -a <area> coverage`, which lists the findings missing
+  from either and exits with an error until there are none; `--all` includes
+  `info` findings.
 
 ## Rendering
 

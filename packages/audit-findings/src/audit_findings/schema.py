@@ -194,6 +194,19 @@ def validate_report(data: object, base_dir: Path) -> list[str]:
     return errors
 
 
+def uncovered(data: dict, include_info: bool = False) -> dict[str, list[str]]:
+    """Finding ids that no issue and no recommendation refers to, keyed by `issues` and `recommendations`.
+
+    Findings of severity `info` are left out unless `include_info` is set.
+    """
+    wanted = [f["id"] for f in data["findings"] if include_info or f["severity"] != "info"]
+    result = {}
+    for section in ("issues", "recommendations"):
+        referenced = {ref for item in data[section] for ref in item.get("findings", [])}
+        result[section] = [fid for fid in wanted if fid not in referenced]
+    return result
+
+
 def inventories(data: dict) -> list[dict]:
     """The coverage tables: `inventory` may hold one table or a list of tables."""
     inventory = data.get("inventory")

@@ -225,6 +225,34 @@ def test_render_writes_the_deliverables(audit, project):
     assert "1 findings (1 critical), 1 issues" in out
 
 
+def test_coverage_lists_findings_without_issue_or_recommendation(audit):
+    audit("add", "finding", stdin=[finding(), finding(location="src/api.py:6-7", snippet="", severity="low")])
+    audit("add", "finding", stdin=finding(location="src/api.py:6", snippet="", severity="info"))
+    audit("add", "issue", stdin={"title": "T", "findings": ["F1"], "summary": "S", "acceptance": ["A"]})
+    audit("add", "recommendation", stdin={"priority": "P1", "text": "R", "findings": ["F1", "F2"]})
+
+    code, out, _ = audit("coverage")
+    assert code == 1
+    assert out.splitlines() == ["findings in no issue: F2"]
+    assert "findings in no issue: F2, F3" in audit("coverage", "--all")[1]
+    assert "findings in no recommendation: F3" in audit("coverage", "--all")[1]
+    assert "findings in no issue: F2" in audit("status")[1]
+
+    audit("update", "I1", stdin={"findings": ["F1", "F2"]})
+    code, out, _ = audit("coverage")
+    assert code == 0
+    assert "OK: every finding above info" in out
+
+
+def test_render_warns_about_uncovered_findings(audit):
+    audit("add", "finding", stdin=finding())
+    audit("add", "recommendation", stdin={"priority": "P1", "text": "R"})
+    code, out, err = audit("render")
+    assert code == 0, err
+    assert "warning: findings in no issue: F1" in out
+    assert "warning: findings in no recommendation: F1" in out
+
+
 def test_build_reports_missing_meta(project, monkeypatch, capsys):
     run(monkeypatch, capsys, "init", stdin={"project": "acme"})
     code, _, err = run(monkeypatch, capsys, "build")

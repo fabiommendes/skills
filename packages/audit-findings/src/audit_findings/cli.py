@@ -27,6 +27,7 @@ from .schema import (
     REQUIRED_FIELDS,
     SEVERITIES,
     inventories,
+    uncovered,
     validate_record,
     validate_report,
 )
@@ -98,6 +99,9 @@ def parser() -> argparse.ArgumentParser:
     c = sub.add_parser("show", help="print records as JSON, with who changed them")
     c.add_argument("ids", nargs="+")
     c.set_defaults(func=cmd_show)
+    c = sub.add_parser("coverage", help="list findings that no issue or no recommendation refers to")
+    c.add_argument("--all", action="store_true", help="include findings of severity info")
+    c.set_defaults(func=cmd_coverage)
     c = sub.add_parser("check", help="check every location and snippet against the source")
     c.set_defaults(func=cmd_check)
     c = sub.add_parser("build", help="validate and write findings.json")
@@ -288,6 +292,19 @@ def cmd_check(args: argparse.Namespace) -> int:
     return report_check(report, args.root)
 
 
+def cmd_coverage(args: argparse.Namespace) -> int:
+    with open_log(args).reading() as state:
+        report = state.to_report()
+    lines = coverage_lines(report, args.all)
+    for line in lines:
+        print(line)
+    if lines:
+        return 1
+    scope = "every finding" if args.all else "every finding above info"
+    print(f"OK: {scope} is in an issue and a recommendation.")
+    return 0
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     path = build(args)
     if path is None:
@@ -313,6 +330,8 @@ def cmd_render(args: argparse.Namespace) -> int:
 
     for out in render_all(data, path.parent):
         print(f"wrote {out}")
+    for line in coverage_lines(data):
+        print(f"warning: {line}")
     counts = Counter(f["severity"] for f in data["findings"])
     summary = ", ".join(f"{counts[s]} {s}" for s in SEVERITIES if counts[s])
     print(f"{len(data['findings'])} findings ({summary or 'none'}), {len(data['issues'])} issues")
@@ -320,6 +339,11 @@ def cmd_render(args: argparse.Namespace) -> int:
 
 
 # Helpers ----------------------------------------------------------------------
+
+
+def coverage_lines(report: dict, include_info: bool = False) -> list[str]:
+    missing = uncovered(report, include_info)
+    return [f"findings in no {section[:-1]}: {', '.join(ids)}" for section, ids in missing.items() if ids]
 
 
 def directory(args: argparse.Namespace) -> Path:
@@ -534,10 +558,8 @@ def status_text(state: State, log: Log) -> str:
     if findings:
         lines.append("findings:")
         lines += [f"  {summary_line(f)}" for f in findings]
-    in_issues = {ref for issue in state.of("issue") for ref in issue.data["findings"]}
-    orphans = [f.id for f in findings if f.id not in in_issues]
-    if orphans and state.of("issue"):
-        lines.append(f"findings in no issue: {', '.join(orphans)}")
+    if state.of("issue") or state.of("recommendation"):
+        lines += coverage_lines(state.to_report())
     pairs = []
     for i, a in enumerate(findings):
         for b in findings[i + 1 :]:
