@@ -9,10 +9,10 @@ Every `audit-*` skill records its results with the `audit-findings` command
 line and renders them with it. The audit skill decides what to look for; this
 skill decides how findings are recorded and delivered.
 
-Run every command as `uvx audit-findings@0.3.1 <command>`, from the project
+Run every command as `uvx audit-findings@0.4.0 <command>`, from the project
 root. Below, that prefix is shortened to `audit-findings`. Without `uv`, create
 a virtual environment outside the project (`python3 -m venv /tmp/audit-venv`),
-install `audit-findings==0.3.1` in it, and run its `audit-findings`. Install
+install `audit-findings==0.4.0` in it, and run its `audit-findings`. Install
 nothing globally.
 
 ## Output directory
@@ -90,9 +90,10 @@ EOF
   saw. Never speculate, and never invent locations, CVEs, or quotes.
 - One finding per distinct defect. The same mistake repeated in several places
   is one finding whose `location` lists every place. When `add` warns that a
-  finding overlaps another, read both with `show`; if they are the same
-  defect, run `merge <new id> <old id>`. When it warns that a finding overlaps
-  one removed earlier, read the reason and remove the new one if it applies.
+  finding overlaps another, read both with `show`: run `merge <new id> <old
+  id>` if they are the same defect, `distinct <new id> <old id>` if not. When
+  it warns that a finding overlaps one removed earlier, read the reason and
+  remove the new one if it applies.
 - Give the exact location: `path:line` or `path:start-end` for code; route or
   screen plus the steps to reach it for interface findings.
 - Quote the offending code in `snippet`, trimmed to the lines that show the
@@ -103,8 +104,15 @@ EOF
   `critical`, `high`, `medium`, `low`, or `info`.
 - Record exploitability or reproduction conditions in `conditions`: feature
   flags, required configuration, roles, devices.
-- `snippet`, `language`, `conditions`, and `screenshot` (a path relative to the
-  output directory) are optional.
+- Set `"mechanical": true` when the fix follows from the finding alone: no
+  design decision, no choice between options, and a reviewer can confirm it
+  from the diff. A typo, an inverted condition, or a missing `await` are
+  mechanical; a new abstraction or a changed API is not. This is independent
+  of severity: an inverted permission check is mechanical and critical. The
+  report batches all mechanical fixes into one issue, to be applied in a
+  single pass.
+- `snippet`, `language`, `conditions`, `screenshot` (a path relative to the
+  output directory), and `mechanical` are optional.
 
 Record what is **correct** as strengths, with evidence. Strengths prove
 coverage: "every handler in `routers/orders.py` checks ownership" shows the
@@ -174,9 +182,9 @@ recorded that you have not accepted yet. Review each one before the synthesis:
    `remove <id> --reason "..."`. The reason stays in the log and is shown when
    an agent later records a finding at the same place.
 
-Resolve the overlapping findings `status` lists the same way. Continue to the
-synthesis when nothing is left to review. A later session resumes the same
-way, from `status`.
+Resolve every overlapping pair `status` lists: `merge` the same defect,
+`distinct` different ones. Continue to the synthesis when nothing is left to
+review. A later session resumes the same way, from `status`.
 
 ## Synthesis
 
@@ -206,10 +214,12 @@ EOF
 - The renderer composes each issue body from its findings: evidence, impact,
   and fix come from the findings, so write those fields to read well on their
   own.
-- Every finding above `info` must be in an issue and a recommendation. Check it
-  with `audit-findings -a <area> coverage`, which lists the findings missing
-  from either and exits with an error until there are none; `--all` includes
-  `info` findings.
+- Every finding above `info` must be in an issue and a recommendation.
+  Mechanical findings need only the recommendation: the renderer files them
+  together in one last issue, so leave them out of the others. Check with
+  `audit-findings -a <area> coverage`, which lists the findings missing from
+  either, and the overlaps not yet resolved, and exits with an error until
+  there are none; `--all` includes `info` findings.
 
 ## Rendering
 

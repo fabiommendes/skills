@@ -237,6 +237,7 @@ def test_coverage_lists_findings_without_issue_or_recommendation(audit):
     audit("add", "finding", stdin=finding(location="src/api.py:6", snippet="", severity="info"))
     audit("add", "issue", stdin={"title": "T", "findings": ["F1"], "summary": "S", "acceptance": ["A"]})
     audit("add", "recommendation", stdin={"priority": "P1", "text": "R", "findings": ["F1", "F2"]})
+    audit("distinct", "F2", "F3")
 
     code, out, _ = audit("coverage")
     assert code == 1
@@ -258,6 +259,82 @@ def test_render_warns_about_uncovered_findings(audit):
     assert code == 0, err
     assert "warning: findings in no issue: F1" in out
     assert "warning: findings in no recommendation: F1" in out
+
+
+def test_overlaps_block_coverage_until_merged_or_distinct(audit):
+    audit("add", "finding", stdin=finding())
+    out = audit("add", "finding", stdin=finding(title="Other defect", location="src/api.py:3", snippet=""))[1]
+    assert "`distinct F2 F1` if not" in out
+    for rid in ("F1", "F2"):
+        audit("add", "issue", stdin={"title": "T", "findings": [rid], "summary": "S", "acceptance": ["A"]})
+    audit("add", "recommendation", stdin={"priority": "P1", "text": "R", "findings": ["F1", "F2"]})
+
+    code, out, _ = audit("coverage")
+    assert code == 1
+    assert "overlapping findings to resolve: F1/F2 at src/api.py:3-3" in out
+    assert "overlapping findings to resolve" in audit("status")[1]
+
+    assert audit("distinct", "F1", "F2")[0] == 0
+    assert audit("coverage")[0] == 0
+    assert "overlapping" not in audit("status")[1]
+
+
+def test_distinct_takes_findings(audit):
+    audit("add", "finding", stdin=finding())
+    assert "two or more" in audit("distinct", "F1")[2]
+    assert "idor is not a finding" in audit("distinct", "F1", "idor")[2]
+
+
+def test_mechanical_findings_are_batched_in_one_issue(audit, project):
+    audit("add", "finding", stdin=finding())
+    audit(
+        "add",
+        "finding",
+        stdin=[
+            finding(
+                title="Typo in a log message",
+                location="src/api.py:6-7",
+                snippet="",
+                severity="low",
+                mechanical=True,
+                fix="Fix the spelling.",
+            ),
+            finding(
+                title="Inverted admin check",
+                location="src/api.py:2",
+                snippet="",
+                severity="high",
+                mechanical=True,
+                fix="Negate the condition.",
+            ),
+        ],
+    )
+    assert "mechanical' must be true or false" in audit("add", "finding", stdin=finding(mechanical="yes"))[2]
+    audit("distinct", "F1", "F3")
+    assert "1 critical, 1 high, 1 low; 2 mechanical" in audit("status")[1]
+    assert [line.split()[0] for line in audit("list", "--mechanical")[1].splitlines()] == ["F2", "F3"]
+
+    audit("add", "issue", stdin={"title": "[Security] IDOR", "findings": ["F1"], "summary": "S", "acceptance": ["A"]})
+    audit("add", "recommendation", stdin={"priority": "P1", "text": "R", "findings": ["F1", "F2", "F3"]})
+    assert audit("coverage")[0] == 0
+
+    code, _, err = audit("render")
+    assert code == 0, err
+    issues = (project / "docs/audits/web/issues.md").read_text()
+    batch = issues.split("--- ISSUE 2 ---")[1]
+    assert "# [Security] Mechanical fixes" in batch
+    assert "**Labels:** mechanical, high, low" in batch
+    assert batch.index("### F3 (high): Inverted admin check") < batch.index("### F2 (low): Typo in a log message")
+    assert "- [ ] F2: Typo in a log message" in batch
+
+
+def test_render_warns_about_characters_the_pdf_cannot_draw(audit):
+    audit("add", "finding", stdin=finding(fix="Use \u2a09 here."))
+    audit("add", "issue", stdin={"title": "T", "findings": ["F1"], "summary": "S", "acceptance": ["A"]})
+    audit("add", "recommendation", stdin={"priority": "P1", "text": "R", "findings": ["F1"]})
+    code, out, err = audit("render")
+    assert code == 0, err
+    assert "warning: F1: the PDF font cannot draw \u2a09 (U+2A09)" in out
 
 
 def test_build_reports_missing_meta(project, monkeypatch, capsys):

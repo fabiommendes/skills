@@ -96,7 +96,7 @@ Every field the skill tells the agent to fill must exist in `audit-findings`:
 |---|---|
 | meta | `lang`, `title`, `project`, `date`, `scope`, `methodology` |
 | category | `id`, `title`, `applies`, `note` |
-| finding | `category`, `severity`, `title`, `location`, `snippet`, `language`, `description`, `impact`, `fix`, `conditions`, `screenshot` |
+| finding | `category`, `severity`, `title`, `location`, `snippet`, `language`, `description`, `impact`, `fix`, `conditions`, `screenshot`, `mechanical` |
 | strength | `text`, `category`, `evidence` |
 
 Fail any other field name, such as `cwe`, `coverage`, `evidence` on a

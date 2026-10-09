@@ -6,9 +6,11 @@ Each line of `findings.jsonl` is one event:
     {"op": "update", "id": "F3", "data": {"severity": "high"}, ...}
     {"op": "remove", "id": "F3", "reason": "duplicate of F1", ...}
     {"op": "accept", "id": "F3", ...}
+    {"op": "distinct", "id": "F3", "data": {"ids": ["F5"]}, ...}
 
 Updates merge into the record; a `null` value deletes the field. `accept`
-marks a record as reviewed until the next update. Writers hold
+marks a record as reviewed until the next update. `distinct` records that
+findings sharing lines are different defects. Writers hold
 an exclusive lock on `findings.jsonl.lock` from reading the log to appending,
 so ids stay unique across parallel agents.
 """
@@ -66,6 +68,8 @@ class State:
     # Every id ever used, including removed ones, so numbers are never reused.
     used: set[str] = field(default_factory=set)
     removed: dict[str, Record] = field(default_factory=dict)
+    # Pairs of overlapping findings declared to be different defects.
+    distinct: set[frozenset[str]] = field(default_factory=set)
 
     def apply(self, event: dict) -> None:
         op, rid = event["op"], event["id"]
@@ -88,6 +92,8 @@ class State:
             record.accepted = False
         elif op == "accept":
             record.accepted = True
+        elif op == "distinct":
+            self.distinct.update(frozenset((rid, other)) for other in event["data"]["ids"])
         elif op == "remove":
             record.reason = change.reason
             self.removed[rid] = self.records.pop(rid)

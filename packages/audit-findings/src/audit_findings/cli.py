@@ -79,6 +79,9 @@ def parser() -> argparse.ArgumentParser:
     c.add_argument("duplicate")
     c.add_argument("into")
     c.set_defaults(func=cmd_merge)
+    c = sub.add_parser("distinct", help="declare overlapping findings to be different defects")
+    c.add_argument("ids", nargs="+", metavar="id")
+    c.set_defaults(func=cmd_distinct)
     c = sub.add_parser("accept", help="mark records as reviewed")
     c.add_argument("ids", nargs="+")
     c.set_defaults(func=cmd_accept)
@@ -95,11 +98,14 @@ def parser() -> argparse.ArgumentParser:
     c.add_argument("--agent", dest="by", metavar="AGENT", help="only records this agent created")
     c.add_argument("--to-review", action="store_true", help="only records subagents created and nobody accepted")
     c.add_argument("--removed", action="store_true", help="list removed records and why")
+    c.add_argument("--mechanical", action="store_true", help="only findings with a mechanical fix")
     c.set_defaults(func=cmd_list)
     c = sub.add_parser("show", help="print records as JSON, with who changed them")
     c.add_argument("ids", nargs="+")
     c.set_defaults(func=cmd_show)
-    c = sub.add_parser("coverage", help="list findings that no issue or no recommendation refers to")
+    c = sub.add_parser(
+        "coverage", help="list findings that no issue or no recommendation refers to, and unresolved overlaps"
+    )
     c.add_argument("--all", action="store_true", help="include findings of severity info")
     c.set_defaults(func=cmd_coverage)
     c = sub.add_parser("check", help="check every location and snippet against the source")
@@ -237,6 +243,19 @@ def cmd_accept(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_distinct(args: argparse.Namespace) -> int:
+    if len(set(args.ids)) < 2:
+        raise UsageError("distinct takes two or more findings")
+    with open_log(args).writing(args.agent) as writer:
+        for rid in args.ids:
+            if get(writer.state, rid).kind != "finding":
+                raise UsageError(f"{rid} is not a finding")
+        first, *others = args.ids
+        writer.emit("distinct", first, {"ids": others})
+    print(f"distinct: {', '.join(args.ids)}")
+    return 0
+
+
 def cmd_progress(args: argparse.Namespace) -> int:
     with open_log(args).writing(args.agent) as writer:
         for rid in args.ids:
@@ -269,6 +288,8 @@ def cmd_list(args: argparse.Namespace) -> int:
                 continue
             if args.to_review and not to_review(record):
                 continue
+            if args.mechanical and not record.data.get("mechanical"):
+                continue
             print(summary_line(record))
     return 0
 
@@ -295,13 +316,13 @@ def cmd_check(args: argparse.Namespace) -> int:
 def cmd_coverage(args: argparse.Namespace) -> int:
     with open_log(args).reading() as state:
         report = state.to_report()
-    lines = coverage_lines(report, args.all)
+        lines = coverage_lines(report, args.all) + overlap_lines(state)
     for line in lines:
         print(line)
     if lines:
         return 1
     scope = "every finding" if args.all else "every finding above info"
-    print(f"OK: {scope} is in an issue and a recommendation.")
+    print(f"OK: {scope} is in an issue and a recommendation; no overlaps are left to resolve.")
     return 0
 
 
@@ -319,18 +340,21 @@ def cmd_render(args: argparse.Namespace) -> int:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not report_valid(data, path, None if args.no_check else args.root):
             return 1
+        overlaps_left = []
     else:
         built = build(args)
         if built is None:
             return 1
         path = built
         data = json.loads(path.read_text(encoding="utf-8"))
+        with open_log(args).reading() as state:
+            overlaps_left = overlap_lines(state)
 
-    from .render import render_all
+    from .render import missing_glyphs, render_all
 
     for out in render_all(data, path.parent):
         print(f"wrote {out}")
-    for line in coverage_lines(data):
+    for line in coverage_lines(data) + overlaps_left + missing_glyphs(data):
         print(f"warning: {line}")
     counts = Counter(f["severity"] for f in data["findings"])
     summary = ", ".join(f"{counts[s]} {s}" for s in SEVERITIES if counts[s])
@@ -344,6 +368,28 @@ def cmd_render(args: argparse.Namespace) -> int:
 def coverage_lines(report: dict, include_info: bool = False) -> list[str]:
     missing = uncovered(report, include_info)
     return [f"findings in no {section[:-1]}: {', '.join(ids)}" for section, ids in missing.items() if ids]
+
+
+def overlap_pairs(state: State) -> list[str]:
+    """Pairs of findings that share lines and nobody declared distinct, as `F1/F2 at <lines>`."""
+    findings = state.of("finding")
+    pairs = []
+    for i, a in enumerate(findings):
+        for b in findings[i + 1 :]:
+            shared = overlaps(a.data["location"], b.data["location"])
+            if shared and frozenset((a.id, b.id)) not in state.distinct:
+                pairs.append(f"{a.id}/{b.id} at {shared}")
+    return pairs
+
+
+def overlap_lines(state: State) -> list[str]:
+    pairs = overlap_pairs(state)
+    if not pairs:
+        return []
+    return [
+        f"overlapping findings to resolve: {'; '.join(pairs)}. "
+        "Run `merge` for the same defect, `distinct` for different ones."
+    ]
 
 
 def directory(args: argparse.Namespace) -> Path:
@@ -438,10 +484,10 @@ def check_record(
     if kind == "finding" and overlap:
         for other in state.of("finding"):
             shared = other.id != rid and overlaps(data["location"], other.data["location"])
-            if shared:
+            if shared and frozenset((rid, other.id)) not in state.distinct:
                 warnings.append(
                     f"{rid} overlaps {other.id} at {shared} ({other.data['title']}); "
-                    f"if it is the same defect, run `merge {rid} {other.id}`"
+                    f"run `merge {rid} {other.id}` if it is the same defect, `distinct {rid} {other.id}` if not"
                 )
         for other in state.removed.values():
             shared = other.kind == "finding" and overlaps(data["location"], other.data["location"])
@@ -531,6 +577,9 @@ def status_text(state: State, log: Log) -> str:
     if missing:
         lines.append(f"meta missing: {', '.join(missing)}")
     totals = {kind: len(state.of(kind)) for kind in ("strength", "risk", "recommendation", "issue", "row")}
+    mechanical = sum(1 for f in findings if f.data.get("mechanical"))
+    if mechanical:
+        by_severity += f"; {mechanical} mechanical"
     lines.append(
         f"findings: {len(findings)} ({by_severity}); strengths: {totals['strength']}; risks: {totals['risk']}; "
         f"recommendations: {totals['recommendation']}; issues: {totals['issue']}; inventory rows: {totals['row']}"
@@ -561,14 +610,7 @@ def status_text(state: State, log: Log) -> str:
         lines += [f"  {summary_line(f)}" for f in findings]
     if state.of("issue") or state.of("recommendation"):
         lines += coverage_lines(state.to_report())
-    pairs = []
-    for i, a in enumerate(findings):
-        for b in findings[i + 1 :]:
-            shared = overlaps(a.data["location"], b.data["location"])
-            if shared:
-                pairs.append(f"{a.id}/{b.id} at {shared}")
-    if pairs:
-        lines.append(f"overlapping findings (possible duplicates): {'; '.join(pairs)}")
+    lines += overlap_lines(state)
     pending_review = [f"{r.id} ({r.creator})" for r in state.records.values() if to_review(r)]
     if pending_review:
         lines.append(f"to review: {', '.join(pending_review)}")

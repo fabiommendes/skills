@@ -2,7 +2,7 @@
 
 Reference for maintainers. Agents never read or write these files directly:
 they go through `audit-findings`, which the `SKILL.md` describes. Formats are
-those of `audit-findings` 0.3.0.
+those of `audit-findings` 0.4.0.
 
 An audit lives in `docs/audits/<area>/`:
 
@@ -24,10 +24,10 @@ Replaying the lines in order gives the current records.
 
 | Field | Present | Meaning |
 |---|---|---|
-| `op` | always | `add`, `update`, `remove`, or `accept`. |
+| `op` | always | `add`, `update`, `remove`, `accept`, or `distinct`. |
 | `id` | always | Record id. |
 | `type` | `add` | Record kind (see below). |
-| `data` | `add`, `update` | `add`: the whole record. `update`: the fields to change. |
+| `data` | `add`, `update`, `distinct` | `add`: the whole record. `update`: the fields to change. `distinct`: `{"ids": [...]}`. |
 | `reason` | `remove` | Why the record was removed, such as `duplicate of F1`. |
 | `agent` | when `--agent` was passed | Free label of the agent that made the change. |
 | `ts` | always | UTC time of the change, ISO 8601, seconds. |
@@ -38,6 +38,9 @@ Replay rules:
 - `update` merges `data` into the record; a `null` value deletes the field. It
   clears the accepted mark.
 - `accept` marks the record as reviewed until its next `update`.
+- `distinct` declares the finding `id` and each finding in `data.ids` to be
+  different defects. `status`, `coverage`, and `render` stop reporting those
+  pairs as overlapping. It leaves the accepted mark alone.
 - `remove` moves the record to the removed set with its `reason`. A removed
   record keeps its data and history, can be shown, and can no longer be
   changed.
@@ -55,7 +58,7 @@ own `id` in `data`, chosen by the agent.
 |---|---|---|
 | `meta` | `meta` (one record) | `lang`, `title`, `project`, `date`, `scope`, `methodology` |
 | `category` | own `id` | **`id`**, **`title`**, `applies`, `note`, `status` |
-| `finding` | `F1`, `F2`, ... | **`category`**, **`severity`**, **`title`**, **`location`**, **`description`**, **`impact`**, **`fix`**, `snippet`, `language`, `conditions`, `screenshot` |
+| `finding` | `F1`, `F2`, ... | **`category`**, **`severity`**, **`title`**, **`location`**, **`description`**, **`impact`**, **`fix`**, `snippet`, `language`, `conditions`, `screenshot`, `mechanical` |
 | `strength` | `S1`, ... | **`text`**, `category`, `evidence` |
 | `risk` | `R1`, ... | **`text`** |
 | `recommendation` | `REC1`, ... | **`priority`**, **`text`**, `findings` |
@@ -71,6 +74,7 @@ Checks made when a record is added or updated:
 - `category`, the ids in `findings`, and `table` refer to live records.
 - A row has as many `cells` as its inventory has `columns`.
 - `screenshot` exists relative to the audit directory.
+- `mechanical` is `true` or `false`.
 - Every `path:line` in a finding's `location` and a strength's `evidence`
   exists, and every line of `snippet` appears in the cited lines.
 
@@ -107,8 +111,8 @@ into the finding it repeats, a review, and the synthesis:
 ## findings.json
 
 `build` turns the live records into this file; the renderer reads only this
-file. Agents, timestamps, review marks, category progress, removed records,
-and inventory ids do not reach it. Without a log, a hand-written
+file. Agents, timestamps, review marks, distinct pairs, category progress,
+removed records, and inventory ids do not reach it. Without a log, a hand-written
 `findings.json` renders directly with `render <path>`, and `import <path>`
 turns it into a log.
 
@@ -128,7 +132,9 @@ Text fields render `` `code` `` spans; blank lines in `methodology`,
 `description`, `impact`, `fix`, and `conditions` separate paragraphs.
 `recommendations` are sorted by `priority` and findings by severity within
 each category when rendered. An issue's `labels` default to the severities of
-its findings.
+its findings. `issues.md` ends with one extra issue that batches every finding
+with `"mechanical": true`, titled with the prefix the other issues share;
+`coverage` does not require those findings to be in an issue of their own.
 
 The example log above builds into:
 

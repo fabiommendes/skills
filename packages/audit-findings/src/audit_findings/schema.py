@@ -55,6 +55,7 @@ RECORD_TYPES = {
                 "fix",
                 "conditions",
                 "screenshot",
+                "mechanical",
             ),
             ("category", "severity", "title", "location", "description", "impact", "fix"),
             "F",
@@ -101,6 +102,8 @@ def validate_record(
         screenshot = record.get("screenshot")
         if screenshot and not (base_dir / screenshot).is_file():
             errors.append(f"screenshot '{screenshot}' does not exist relative to {base_dir}")
+        if not isinstance(record.get("mechanical", False), bool):
+            errors.append("'mechanical' must be true or false")
     if kind in ("finding", "strength") and record.get("category") and record["category"] not in ids["category"]:
         errors.append(f"category '{record['category']}' does not exist; add it first")
     if kind in ("recommendation", "issue"):
@@ -161,6 +164,8 @@ def validate_report(data: object, base_dir: Path) -> list[str]:
         screenshot = finding.get("screenshot")
         if screenshot and not (base_dir / screenshot).is_file():
             errors.append(f"{where} has screenshot '{screenshot}', which does not exist relative to {base_dir}")
+        if not isinstance(finding.get("mechanical", False), bool):
+            errors.append(f"{where} has 'mechanical' that is not true or false")
 
     for i, strength in enumerate(data["strengths"]):
         if not strength.get("text"):
@@ -198,12 +203,16 @@ def uncovered(data: dict, include_info: bool = False) -> dict[str, list[str]]:
     """Finding ids that no issue and no recommendation refers to, keyed by `issues` and `recommendations`.
 
     Findings of severity `info` are left out unless `include_info` is set.
+    Mechanical findings need no issue: the renderer files them in one batch.
     """
-    wanted = [f["id"] for f in data["findings"] if include_info or f["severity"] != "info"]
+    wanted = [f for f in data["findings"] if include_info or f["severity"] != "info"]
     result = {}
     for section in ("issues", "recommendations"):
         referenced = {ref for item in data[section] for ref in item.get("findings", [])}
-        result[section] = [fid for fid in wanted if fid not in referenced]
+        exempt = section == "issues"
+        result[section] = [
+            f["id"] for f in wanted if f["id"] not in referenced and not (exempt and f.get("mechanical"))
+        ]
     return result
 
 

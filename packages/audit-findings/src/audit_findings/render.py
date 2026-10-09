@@ -84,6 +84,13 @@ LABELS = {
         "findings_ref": "Findings",
         "copy": "Copy",
         "copied": "Copied",
+        "mechanical": "Mechanical fix",
+        "mechanical_title": "Mechanical fixes",
+        "mechanical_intro": (
+            "Each fix below follows from its finding and needs no design decision, so they can be applied "
+            "together in one pass and reviewed by reading the diff. Severity still applies: a mechanical fix "
+            "can matter a lot."
+        ),
     },
     "pt": {
         "date": "Data",
@@ -118,6 +125,13 @@ LABELS = {
         "findings_ref": "Achados",
         "copy": "Copiar",
         "copied": "Copiado",
+        "mechanical": "Correção mecânica",
+        "mechanical_title": "Correções mecânicas",
+        "mechanical_intro": (
+            "Cada correção abaixo decorre do seu achado e não exige decisão de projeto, então todas podem ser "
+            "aplicadas juntas, numa só rodada, e revisadas pela leitura do diff. A severidade continua valendo: "
+            "uma correção mecânica pode ser importante."
+        ),
     },
 }
 
@@ -186,10 +200,78 @@ def issue_blocks(data: dict, labels: dict) -> list[str]:
         lines += [f"- [ ] {item}" for item in issue["acceptance"]]
         lines += ["", f"--- END ISSUE {n} ---"]
         blocks.append("\n".join(lines))
-    return blocks
+    mechanical = mechanical_block(data, labels, len(blocks) + 1)
+    return blocks + ([mechanical] if mechanical else [])
+
+
+def mechanical_block(data: dict, labels: dict, n: int) -> str:
+    """One issue that batches every finding with a mechanical fix, most severe first."""
+    batch = sorted((f for f in data["findings"] if f.get("mechanical")), key=lambda f: SEVERITIES.index(f["severity"]))
+    if not batch:
+        return ""
+    prefixes = {re.match(r"\[[^\]]+\] ", issue["title"]) for issue in data["issues"]}
+    prefix = next(iter(prefixes)).group(0) if len(prefixes) == 1 and None not in prefixes else ""
+    severities = sorted({f["severity"] for f in batch}, key=SEVERITIES.index)
+
+    lines = [f"--- ISSUE {n} ---", f"# {prefix}{labels['mechanical_title']}", ""]
+    lines += [f"**{labels['labels']}:** {', '.join(['mechanical', *severities])}", ""]
+    lines += [f"## {labels['problem']}", "", labels["mechanical_intro"], ""]
+    for f in batch:
+        lines += [f"### {f['id']} ({f['severity']}): {f['title']}", "", f"`{f['location']}`", ""]
+        if f.get("snippet"):
+            lines += [f"```{f.get('language', '')}", *f["snippet"].rstrip().splitlines(), "```", ""]
+        lines += [f"**{labels['fix']}:** {f['fix']}", ""]
+    lines += [f"## {labels['acceptance']}", ""]
+    lines += [f"- [ ] {f['id']}: {f['title']}" for f in batch]
+    lines += ["", f"--- END ISSUE {n} ---"]
+    return "\n".join(lines)
 
 
 # PDF ------------------------------------------------------------------------
+
+
+def missing_glyphs(data: dict) -> list[str]:
+    """Characters the PDF fonts cannot draw, one line per record; they render as empty boxes."""
+    fonts = [pdfmetrics.getFont(name) for name in register_fonts()]
+    if all(hasattr(font.face, "charToGlyph") for font in fonts):
+        covered = set.intersection(*(set(font.face.charToGlyph) for font in fonts))
+
+        def drawable(ch: str) -> bool:
+            return ord(ch) in covered
+    else:
+
+        def drawable(ch: str) -> bool:
+            try:
+                ch.encode("cp1252")
+            except UnicodeEncodeError:
+                return False
+            return True
+
+    sources = [("meta", {k: data.get(k) for k in ("title", "project", "scope", "methodology")})]
+    sources += [(c["id"], c) for c in data["categories"]]
+    sources += [(f["id"], f) for f in data["findings"]]
+    for name in ("strengths", "recommendations", "issues"):
+        sources += [(f"{name}[{i}]", item) for i, item in enumerate(data[name])]
+    sources += [(f"risks[{i}]", {"text": r}) for i, r in enumerate(data.get("risks", []))]
+    lines = []
+    for where, record in sources:
+        text = json_text(record)
+        bad = sorted({ch for ch in text if not ch.isspace() and not drawable(ch)})
+        if bad:
+            chars = ", ".join(f"{ch} (U+{ord(ch):04X})" for ch in bad)
+            lines.append(f"{where}: the PDF font cannot draw {chars}; replace it with `update`")
+    return lines
+
+
+def json_text(value: object) -> str:
+    """Every string inside a record, joined."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return " ".join(json_text(v) for v in value.values())
+    if isinstance(value, list):
+        return " ".join(json_text(v) for v in value)
+    return ""
 
 
 def register_fonts() -> tuple[str, str, str]:
@@ -414,6 +496,8 @@ def render_pdf(data: dict, report: dict, labels: dict, out_path: Path, base_dir:
         for f in in_category:
             block = [Paragraph(f"{inline(f['id'], mono)}: {inline(f['title'], mono)}", h3)]
             block.append(Paragraph(f"<b>{labels['location']}:</b> {inline(f['location'], mono)}", small))
+            if f.get("mechanical"):
+                block.append(Paragraph(f"<i>{labels['mechanical']}</i>", small))
             if f.get("snippet"):
                 block += [Spacer(1, 3), wrapped(f["snippet"], styles["mono"])]
             for key in ("description", "impact", "fix", "conditions"):
@@ -736,6 +820,8 @@ def render_html(data: dict, report: dict, labels: dict, base_dir: Path) -> str:
                 f"<h4>{html_chip(f['severity'])} {html.escape(f['id'])}: {html_inline(f['title'])}</h4>"
                 f"<p><strong>{labels['location']}:</strong> <code>{html.escape(f['location'])}</code></p>"
             )
+            if f.get("mechanical"):
+                out.append(f'<p class="meta"><em>{labels["mechanical"]}</em></p>')
             if f.get("snippet"):
                 out.append(f"<pre><code>{html.escape(f['snippet'].rstrip())}</code></pre>")
             for key in ("description", "impact", "fix", "conditions"):
