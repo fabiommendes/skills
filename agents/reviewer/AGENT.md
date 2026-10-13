@@ -33,8 +33,9 @@ findings.
 - Each requirement has at least one test. List requirements with no test.
 - Tests assert the behavior the spec defines, not a different interpretation.
 - Tests cover boundaries and failure cases, not only the happy path.
-- Tests are deterministic and independent, and test behavior rather than
-  internals.
+- Tests follow the `testing.md` guide of the `good-code` skill: deterministic
+  and independent, behavior rather than internals, no tautological expected
+  values.
 
 ### Spec against implementation
 

@@ -1,15 +1,33 @@
 #!/usr/bin/env bash
-# Install every skill and agent in this repository for the current user.
-#
-# Skills are copied with `npx skills`. Agents are symlinked into
-# ~/.claude/agents, so edits in this repository take effect immediately.
+# Link this checkout's skills and agents for local development.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+skills_dir="$HOME/.agents/skills"
 agents_dir="$HOME/.claude/agents"
 
-echo "Installing skills..."
-npx --yes skills add "$repo" --global --skill '*' --agent claude-code --yes
+echo "Linking skills into $skills_dir..."
+mkdir -p "$skills_dir"
+
+while IFS= read -r -d '' manifest; do
+    src="$(dirname "$manifest")"
+    name="$(basename "$src")"
+    dest="$skills_dir/$name"
+
+    if [[ -e "$dest" && ! -L "$dest" ]]; then
+        echo "  skip $name: $dest exists and is not a symlink" >&2
+        continue
+    fi
+    ln -sfn "$src" "$dest"
+    echo "  $name"
+done < <(find "$repo/skills" -type f -name SKILL.md -print0)
+
+while IFS= read -r -d '' dest; do
+    if [[ ! -e "$dest" ]]; then
+        rm -- "$dest"
+        echo "  removed broken link $(basename "$dest")"
+    fi
+done < <(find "$skills_dir" -mindepth 1 -maxdepth 1 -type l -print0)
 
 echo "Linking agents into $agents_dir..."
 mkdir -p "$agents_dir"

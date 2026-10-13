@@ -21,8 +21,11 @@ You are the **orchestrator** unless told otherwise.
 
 Take the mode from the argument. With no argument, or if the argument is a command use `default`.
 
-Read the section for your mode in [references/modes.md](references/modes.md),
-not all three.
+Read the file for your mode only:
+
+- `lite`: [references/mode-lite.md](references/mode-lite.md)
+- `default`: [references/mode-default.md](references/mode-default.md)
+- `full`: [references/mode-full.md](references/mode-full.md)
 
 ## Invariants
 
@@ -32,7 +35,11 @@ These hold in every mode.
   reason before that behavior is implemented.
 - **One cycle, one slice.** A cycle delivers one vertical slice, worked in
   batches of at most 3 acceptance criteria. Needing more than about 3 batches
-  means this should have been two cycles — split it.
+  means this should have been two cycles — split it. Never write every test for
+  a feature before any of its implementation: bulk tests verify imagined
+  behavior and commit to a test structure before you understand the
+  implementation. Small batches let each batch's tests respond to what the last
+  one taught you.
 - **Tests are never written from the implementation.** In `lite` the ordering
   enforces this. In `default` and `full` the implementer also never reads test
   code to decide what to build.
@@ -53,8 +60,11 @@ previous one lands.
 Design for testability. Push side effects out with dependency injection or
 higher-order functions. Keep outer layers — HTTP handlers, CLI entry points,
 browser-facing code — thin over an inner abstraction that holds the logic, so a
-cheap seam exists to test at. [references/testing.md](references/testing.md)
-covers where tests attach and what they should look like.
+cheap seam exists to test at.
+
+Before writing tests, load the `good-code` skill and read its `testing.md`. It
+covers where tests attach and what they should look like; this skill covers
+only the workflow.
 
 Name the seams you intend to test and the acceptance criteria, and report both
 to the human in bullets before starting. Do not wait for approval. Stop and ask

@@ -4,21 +4,30 @@ A collection of skills and subagents for coding agents. It is mainly designed
 to be used with [Claude](https://claude.ai), but it should probably work with
 other agents with minimum adjustments.
 
-To install every skill and agent from a local clone, for the current user and
-Claude Code:
+For most users, install skills with [`npx skills`](https://github.com/vercel-labs/skills).
+For example, to install skills globally:
 
 ```bash
-./install.sh
+npx skills add fabiommendes/skills --skill tdd --skill spec
 ```
 
-Skills are copied, so run it again after changing a skill. Agents are
-symlinked, so changes to them take effect immediately.
+If you're developing skills in a local clone and want changes to take effect
+immediately, run:
+
+```bash
+./dev-install.sh
+```
+
+This links every skill into `~/.agents/skills/` and every agent into
+`~/.claude/agents/`. It also removes broken skill links from
+`~/.agents/skills/`.
 
 
 ## Skills
 
-Skills live under `skills/<category>/<skill>`. Install them with
-[`npx skills`](https://github.com/vercel-labs/skills).
+Skills live under `skills/<category>/<skill>`. Use `npx skills` to list or
+selectively install them. Developers working from a local clone can use
+`dev-install.sh` to link all skills directly from the checkout.
 
 List the skills available in this repository:
 

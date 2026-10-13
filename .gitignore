@@ -1,9 +1,13 @@
 # Local environment files
 .env
 
-# Symlink to the local install directory (~/.agents/skills)
-installed
+# Reference skills in other directories
+ref
 
 # Tool caches
 .ruff_cache/
 __pycache__/
+
+# Local tool state
+.base-ast/
+.serena/

@@ -2,6 +2,7 @@
 name: spec
 description: Write a spec with numbered requirements and acceptance criteria. Use when the user wants to specify a feature, write a spec or PRD, or turn a request or issue into requirements.
 argument-hint: "[interactive|headless]"
+disable-model-invocation: true
 ---
 
 # Spec

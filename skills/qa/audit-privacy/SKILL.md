@@ -8,10 +8,8 @@ description: Privacy and data-protection audit (LGPD, GDPR) of a codebase coveri
 Audit how the application collects, stores, shares, and deletes personal data,
 and deliver the report defined by the `audit-report` skill.
 
-This audit reads code and configuration; it is not legal advice. Whether a
-legal basis is valid, or a disclosure is sufficient, is a question for counsel.
-Record such points as `info` findings marked "for legal review" instead of
-judging them.
+This audit reads code and configuration; it is not legal advice. Record such
+points as `info` findings marked "for legal review" instead of judging them.
 
 Access-control flaws that expose personal data belong to `audit-webserver`;
 mention them here only to point at that audit.

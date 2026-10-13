@@ -14,10 +14,10 @@ the skills where they fall short.
 ## Where things are
 
 - Skills: `skills/qa/audit-{report,webserver,db,dependencies,privacy,ux,ui}/`
-  in this repository, installed with `./install.sh`.
+  in this repository, installed with `./dev-install.sh`.
 - Fixtures, ground truth, and methodology: the `skills-validation` repository
   (<https://github.com/fabiommendes/skills-validation>, private, cloned at
-  `~/git/ai/skills-validation`), kept apart so `npx skills add` does not
+  `~/git/tools/skills-validation`), kept apart so `npx skills add` does not
   download it. Its README holds the shared tests T1 to T11 and the run
   procedure; each `<skill>/METHODOLOGY.md` holds the skill's intent, specific
   tests, and run log; each `<skill>/<repo>/GROUND-TRUTH.md` the answers.

@@ -23,14 +23,11 @@ followed by the acceptance criteria, the API stubs, and the scope.
 > wrong.
 >
 > Before writing: read the project's `CLAUDE.md` or `AGENTS.md` and follow it
-> over your own defaults. Read enough of the existing test suite to match its
-> framework, layout, naming, fixture style, and assertion style. Do not
-> introduce a new test framework or helper library without approval.
+> over your own defaults. Load the `good-code` skill and read its `testing.md`;
+> follow it. Read enough of the existing test suite to learn its conventions.
 >
-> Test behavior, not internals: no assertions on private functions, call
-> counts, or structure the criteria do not promise. Cover the normal case, the
-> boundaries, and the failure case for each criterion. Keep each test
-> deterministic and independent.
+> Cover the normal case, the boundaries, and the failure case for each
+> criterion.
 >
 > Report back when done. If a criterion is ambiguous or untestable at the seam
 > you were given, say so rather than guessing.

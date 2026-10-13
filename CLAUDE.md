@@ -1,14 +1,15 @@
 This project is a collection of skills and subagents for AI coding agents.
 
-- `skills/<category>/<skill>/SKILL.md`: skills, installed with `npx skills add`.
-  `skills-lock.json` is the `npx skills` lock file.
+- `skills/<category>/<skill>/SKILL.md`: skills, linked into `~/.agents/skills/`
+  by the developer-only `dev-install.sh`. `skills-lock.json` is the `npx skills`
+  lock file.
 - `agents/<name>/AGENT.md`: subagents, installed by symlinking each directory
   into `~/.claude/agents/`.
 - `packages/<name>/`: Python packages the skills call through `uvx`, each kept
   in sync with its own repository by `git subtree`. Bump the version pinned in
   the skills when releasing one.
-- `install.sh`: installs every skill and agent for the current user. Run it
-  after changing a skill; agents are symlinks and need no reinstall.
+- `dev-install.sh`: links every skill and agent for local development. Run it
+  when developing skills; links make changes take effect immediately.
 
 Never add new skills or agents unless explicitly asked.
 

@@ -2,6 +2,7 @@
 name: factory
 description: Deliver a feature or bug fix end to end with the agent team — spec, design, tests, implementation, reviews, user testing, and docs. Use when the user asks to run the factory or to build something with the full agent pipeline.
 argument-hint: "[feature|bug]"
+disable-model-invocation: true
 ---
 
 # Factory
