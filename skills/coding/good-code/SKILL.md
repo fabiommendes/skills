@@ -1,248 +1,132 @@
 ---
 name: good-code
 description: |
-  Language-agnostic code design and readability heuristics covering naming, comments and docstrings, module layout, type and data modeling, function design, error handling, classes, boundaries, and tests. Use when designing types or modules, refactoring, reviewing code or a diff for quality, or when the user asks about naming, structure, or code smells.
+  Language-agnostic rules for code design and readability: names, comments and docstrings, module layout, types and data, functions, error handling, classes, boundaries, and tests. Use when you design types or modules, refactor, review code or a diff for quality, or when the user asks about names, structure, or code smells.
+metadata:
+  translatedFrom: 3df68456df25cbf8316c438f73c9734466fd59d5
 ---
 
-# Good Code
+# Good code
 
-Optimize for the reader. Here are some heuristics to guide you.
+Write code for the reader. These rules guide the work.
 
-Apply them to the code you are writing or changing. If you notice problems in
-surrounding code, do not fix or list them one by one: mention briefly that there
-are some style issues and ask whether to fix them.
+Apply them to the code that you write or change. If you see problems in the code around it, do not fix or list each one. Tell the user that there are some style problems, and ask if they want a fix.
 
-Writing or reviewing tests? Read [testing.md](testing.md).
+If the task is to write or review tests, read [testing.md](testing.md).
 
 
 ## Names
 
-Names reflect design. If naming a thing is hard or convoluted, the design is
-probably wrong.
+Names show the design. If it is difficult or confusing to find a name for a thing, the design is probably wrong.
 
-- Names reveal intent: why it exists, what it does, how it's used. Knowing the
-  name and type should make the purpose and usage of the entity immediately
-  clear.
-- One word per concept across the codebase. Don't mix `fetch`, `get`, and
-  `retrieve` for the same operation, or reuse one verb for different operations.
-  Check if the project defines a glossary of key terms and concepts, and use
-  them consistently.
-- Length tracks scope. A loop index can be `i`; a module-level export cannot.
-- One-letter names are acceptable when they map to established mathematical
-  conventions (i, j, k for indices, x, y, z for coordinates, etc.). They are for
-  mathematical abstractions and never refer to domain objects. E.g., `x`/`xs`
-  are ok for a generic function over a collection, but a callback that expects a
-  specific User type should use `user` rather than `u`.
-- Classes and types are noun phrases; functions that cause side effects are verb
-  phrases. Pure functions may be nouns (`area`) or verbs (`computeArea`); pick
-  one style per codebase.
-- Avoid type or scope encoding in the name. No cute names, no noise words
-  (`Data`, `Info`, `Manager`, `Processor`) that distinguish nothing.
-- Replace literals that carry domain meaning (limits, timeouts, rates) with
-  named constants.
+- A name shows the intent: why the entity exists, what it does, and how to use it. The name and the type alone must make the purpose and the use clear.
+- Use one word for each concept in the full codebase. Do not use `fetch`, `get`, and `retrieve` for the same operation. Do not use the same verb for different operations. If the project has a glossary of key terms and concepts, use its terms consistently.
+- The length of a name follows its scope. A loop index can be `i`. A module-level export cannot.
+- One-letter names are correct when they follow a known mathematical convention (i, j, k for indices; x, y, z for coordinates). Use them for mathematical abstractions only, never for domain objects. For example, `x` and `xs` are correct in a generic function on a collection. A callback that receives a `User` must use `user`, not `u`.
+- Classes and types are noun phrases. Functions with side effects are verb phrases. Pure functions can be nouns (`area`) or verbs (`computeArea`). Use one style in each codebase.
+- Do not put the type or the scope in the name. Do not use names that are too creative. Do not use general words (`Data`, `Info`, `Manager`, `Processor`) that do not identify anything.
+- Replace literals that have a domain meaning (limits, timeouts, rates) with named constants.
 
 
 ## Comments
 
-- DO NOT reference process documents (handoffs, plans, specs under review) in
-  comments; they may not be available to future readers and become stale.
-- Explain the reason behind a decision, not that someone made it (e.g., in a
-  conversation). The comment should be self-contained, complete, and not rely on
-  external context.
+- Do NOT refer to process documents (handoffs, plans, specs in review) in comments. Future readers possibly cannot get them, and the comments become out of date.
+- Give the reason for a decision, not the fact that someone made it (for example, in a chat). A comment must be complete and must not need external context.
 
-When you encounter a comment in code you are changing:
+When you find a comment in the code that you change:
 
-- **Delete**: wrong and misleading comments should be deleted immediately; they
-  are actively harmful. Also remove comments that do not add value:
-  restatements of the code or types, commented-out code, attributions, etc.
-- **Keep**: intent behind a non-obvious decision, warnings about consequences,
-  legal headers, clarification of something you genuinely cannot change,
-  justifications for linter or type checker suppressions, safety checks, etc.
-- **Refactor**: TODOs, FIXMEs, and comments that indicate technical debt. Fix
-  them if the fix is trivial and local, move them to an issue if the fix is
-  clear but not local, or leave them as they are if unclear.
-- **Reword**: poorly phrased comments should be reworded to improve clarity and
-  accuracy.
+- **Delete**: delete wrong or misleading comments immediately, because they cause damage. Also delete comments without value: comments that repeat the code or the types, commented-out code, author credits.
+- **Keep**: the intent of a decision that is not obvious, warnings about consequences, legal headers, notes about something that you cannot change, the reason for a linter or type checker suppression, security checks.
+- **Refactor**: TODOs, FIXMEs, and comments about technical debt. If the fix is simple and local, fix it. If the fix is clear but not local, move it to an issue. If the fix is not clear, keep the comment.
+- **Rewrite**: rewrite unclear comments to make them clear and precise.
 
-Documentation comments/docstrings:
+Doc comments and docstrings:
 
-- Public APIs should be documented. It is ok to document private APIs, but keep
-  details to a minimum.
-- The documentation comment/string and the documented code always form a
-  paragraph: ensure there are blank lines separating it from other paragraphs
-  at the same nesting level.
-- Never use the block comment form (`/** ... */` or `""" ... """`) on a single
-  line. Multiline comments always start with a single sentence that summarizes
-  them. If further explanation is required, follow the summary sentence with
-  additional details. For functions, this may include information about the
-  parameters, return value, exceptions, and side effects.
-- Do not document parameters or the return value when all of them are obvious
-  from the function signature. If a single parameter needs clarification,
-  explain it in a second paragraph. If two or more need it, document all of
-  them, including the trivial ones.
+- Document public APIs. You can document private APIs, but keep the details to a minimum.
+- A doc comment or docstring and the code that it documents are one paragraph. Put blank lines between this paragraph and other paragraphs at the same nesting level.
+- Do not use the block form (`/** ... */` or `""" ... """`) on one line. A multi-line comment starts with one sentence that gives a summary. Put more details after the summary. For a function, the details can include the parameters, the return value, the exceptions, and the side effects.
+- Do not document the parameters or the return value when the signature makes them obvious. If one parameter needs a note, explain it in a second paragraph. If two or more parameters need a note, document all of them, also the simple ones.
 
 
 ## Module layout
 
 - Keep related functionality together.
-- The module should read top-down: the most important definitions go first
-  (usually types), followed by the rest in order of decreasing importance and
-  likelihood of being consumed from the outside. This rule also applies to
-  methods in a class. In languages that require definition before use, if the
-  core definition depends on too many prior definitions, move them to a helper
-  module.
-- If a module gets too big, consider breaking it into smaller helper modules.
-- Modules are often organized as collections (a library of functions) or as
-  functionality centered around a specific type. In the latter case, put that
-  type at the top: emphasize it!
-- If more than one type is the focus of the same module, consider breaking it
-  into separate modules. Auxiliary types do not count.
-- Think of how it would read as prose: sentences, paragraphs, sections,
-  chapters. In code, we separate paragraphs with blank lines and sections with
-  section comments, and each file corresponds to a chapter.
+- A reader reads the module from top to bottom. Put the most important definitions first (usually the types). Put the other definitions after them, in order of importance and of their use from outside the module. This rule also applies to the methods of a class. In languages that require a definition before its use, if the main definition needs many definitions before it, move them to a helper module.
+- If a module becomes too large, divide it into smaller helper modules.
+- A module is usually a collection (a library of functions) or the functionality of one type. In the second case, put that type at the top, where the reader sees it first.
+- If a module has more than one main type, put each type in its own module. Helper types do not count.
+- Read the module as prose: sentences, paragraphs, sections, chapters. In code, blank lines separate paragraphs and section comments separate sections. Each file is one chapter.
 
 
 ## Types
 
-- Design around data. Functions come second.
-- Types should be focused and composable. Composability often favors cohesion,
-  reuse, and expressiveness.
-- Compose beyond composition: inspect the domain and look for relationships that
-  can be described as some sort of algebraic structure. How can we combine
-  behaviors? Which pieces of data are naturally processed together? Which
-  transformations are important? Can you identify a functional pattern like
-  Functor (map/flatMap), Monoid (empty/combine), or Applicative (pure/<*>)? In
-  languages that do not use functional nomenclature, apply the patterns without
-  the names.
-- Make invalid states unrepresentable: model your types to minimize the number
-  of invalid states that can be represented. Ideally there should be none. A bug
-  cannot happen if we cannot express it in code. Enum types, sealed classes,
-  type unions, and similar constructs often help achieve this goal.
-- Use data hiding if the previous approach fails or if the representation uses
-  convoluted internal types. Simple types should either expose all fields or
-  hide all of them. The latter is useful to implement the "Parse, don't
-  validate" pattern.
-- Prefer immutability. Make it the default and change only if there is a good
-  reason for mutability. Marginal performance gains outside of hot loops are not
-  a sufficient justification.
-- If a type is too big, extract parts and use composition when they can be
-  meaningfully separated and reused or tested independently.
-- If a pattern recurs across types, extract it into a generic type abstraction
-  and define generics, interfaces, or protocols depending on the language and
-  context.
-- Use type aliases and type-level programming freely to improve readability.
-  - Primitive types should usually be aliased to signal intent (e.g., `UserId`
-    instead of `String`). This also opens the door to future hardening into
-    new/branded types.
-  - Treat type-level operations as functional code: composable, reusable,
-    focused, documented. If the language allows, write type-level tests to
-    ensure correctness.
+- Design the data first. Design the functions after the data.
+- Make types small and composable. Composition usually gives cohesion, reuse, and clear code.
+- Look for more than composition. Analyze the domain and find relations that an algebraic structure describes. How do behaviors combine? Which data do you process together? Which transformations are important? Do you see a functional pattern, such as Functor (map/flatMap), Monoid (empty/combine), or Applicative (pure/<*>)? In languages that do not use functional names, use the patterns without the names.
+- Make invalid states impossible to represent. Design the types so that they can represent the minimum number of invalid states, ideally zero. If the code cannot express a bug, the bug cannot occur. Enumerated types, sealed classes, union types, and similar constructs help.
+- Use data hiding if the previous approach fails, or if the representation uses complex internal types. A simple type shows all its fields or hides all its fields. Hide all fields to implement the "Parse, don't validate" pattern.
+- Prefer immutable data. Use it as the default. Use mutable data only when you have a good reason. A small performance gain outside a frequent loop is not a sufficient reason.
+- If a type becomes too large, extract parts of it and use composition. Do this when the parts are meaningful alone and you can reuse or test them separately.
+- If a pattern repeats across types, extract it to a generic type abstraction. Define generics, interfaces, or protocols, as the language and the context permit.
+- Use type aliases and type-level programming freely to make the code easier to read.
+  - Usually, give a primitive type an alias that shows the intent (for example, `UserId`, not `String`). Later, you can make the alias stricter, for example a newtype or a branded type.
+  - Treat type-level operations as functional code: composable, reusable, focused, and documented. If the language permits, write type-level tests to prove that they are correct.
 
 
 ## Functions
 
-- Keep functions focused: do one thing, at a single level of abstraction. Pure
-  functions always do one thing; effectful functions should perform a single
-  effect.
-- When designing a collection of functions or methods, design for composability.
-  Extract the minimal set of primitives that cover all desired behaviors and
-  expose them as the public API.
-- Flat and small. Deep nesting is the signal to extract, possibly to a nested
-  function if the language supports it. For large, complex functions, nested
-  helpers do not count toward the size of the outer function.
-- Fewer arguments are better; three is the practical ceiling. If the function
-  receives many options, wrap them in a configuration object (or use
-  keyword-only arguments in Python).
-- Avoid unnamed boolean arguments: at the call site, it is unclear whether
-  `true` enables or disables the feature. Name flags so the default reads
-  naturally (`cache=True` rather than `no_cache=False`). If both read naturally, prefer consider extracting as an enum.
-- No output arguments. Mutate the owning object or return a value.
-- Prefer separating commands from queries: a function either changes state or
-  answers a question. Atomic or idiomatic exceptions (`pop`, compare-and-swap)
-  are fine.
-- Small amounts of duplication are acceptable; extract when it introduces a
-  useful and understandable abstraction. If you find it hard to name the
-  abstraction, it might not be worth extracting.
-- Do not over-abstract. Apply the same rule as for comments: `isEven(x)` is a bad
-  abstraction for `x % 2 === 0` for the same reason we would not write a comment
-  explaining this trivial piece of code. It is ok to leak low-level details for
-  trivial logic.
-- If the function is too long or complex, consider extracting the internals into
-  a private class. The instance works like a closure that allows inspection of
-  intermediate steps of execution.
+- Keep functions focused: one task, at one level of abstraction. A pure function always does one task. A function with effects does one effect.
+- When you design a set of functions or methods, design them for composition. Find the minimum set of primitives that gives all the necessary behaviors, and make them the public API.
+- Keep functions flat and short. Deep nesting tells you to extract code, possibly to a nested function if the language permits. In a large and complex function, nested helpers do not count in the length of the outer function.
+- Use few arguments. Three is the practical maximum. If a function has many options, put them in a configuration object (or use keyword-only arguments in Python).
+- Do not use boolean arguments without a name: at the call site, the reader does not know if `true` enables or disables the feature. Give flags names so that the default reads naturally (`cache=True`, not `no_cache=False`). If both values read well, use an enum.
+- Do not use output arguments. Change the object that owns the data, or return a value.
+- Keep commands and queries separate: a function changes the state or answers a question, not both. Atomic or idiomatic exceptions (`pop`, compare-and-swap) are correct.
+- A small quantity of duplicate code is correct. Extract it when the result is a useful abstraction that is easy to understand. If it is difficult to find a name for the abstraction, possibly the extraction has no value.
+- Do not add unnecessary abstractions. Use the same rule as for comments: `isEven(x)` is a bad abstraction for `x % 2 === 0`, for the same reason that we do not write a comment that explains this simple code. Low-level details in simple logic are correct.
+- If a function is too long or too complex, move its internal steps to a private class. The instance is a closure that lets you inspect the intermediate steps.
 
 
 ## Error handling
 
-The two most common approaches to error handling are the result/optional pattern
-and exceptions. Results force the caller to handle unhappy outcomes; exceptions
-let them propagate. Each places different obligations on the caller. A codebase
-can mix both styles if each is used consistently in a predictable manner, but do
-not mix them haphazardly.
+The two usual approaches to errors are the result/optional pattern and exceptions. A result makes the caller handle the failure. An exception lets the error go up the call stack. Each approach gives the caller different obligations. A codebase can use both styles if it uses each one consistently and predictably. Do not mix them without a rule.
 
-- Prefer exceptions for exceptional conditions (broken invariants, unexpected
-  states, unavailable resources, etc.), not for regular control flow.
-- Prefer result types (e.g., `Result<T, E>`, `Optional<T>`, or similar) for
-  expected branching from the happy path.
-- However, language conventions take precedence (e.g., Python collections raise
-  `KeyError` and `IndexError` instead of returning optionals, so in Python we
-  follow that).
-- Carry context: exceptions and results should provide information about the
-  operation attempted and why it failed. Avoid bare message strings as the only
-  source of context. Use optionals when the context is trivial and there is a
-  single obvious reason for failure.
-- Optional types over collections and strings require extra thought: is there a
-  semantic difference between `null` and the empty value? If not, drop the
-  nullable; if there is, clearly document what the difference means.
+- Use exceptions for exceptional conditions (broken invariants, unexpected states, resources that are not available), not for the normal control flow.
+- Use result types (for example `Result<T, E>`, `Optional<T>`, or similar) for expected failures.
+- The conventions of the language have priority. For example, Python collections raise `KeyError` and `IndexError` and do not return optionals, so in Python, do the same.
+- Include context: an exception or a result tells the operation that failed and why. Do not use a plain text message as the only context. Use optionals when the context is trivial and the failure has only one obvious cause.
+- Optional collections and strings need more care. Is `null` different from the empty value? If not, remove the nullable type. If yes, document what the difference means.
 
 
 ## Classes
 
-- Classes are one way to define types in object-oriented languages. Do not bring
-  in OO concepts just because the type was declared as a class. Avoid gratuitous
-  hierarchies, data hiding, state, and variance considerations.
-- Avoid concrete inheritance: OO conflates types, interfaces, code reuse, and
-  taxonomies. Only the latter requires concrete inheritance. Use it when the
-  domain has a genuine, stable taxonomy; otherwise it is usually a brittle and
-  unnecessary abstraction.
-- Classes can represent many things: types, hierarchies, closures, shared
-  behavior for an interface, or an abstract base class. Do not mix roles.
-- Depend on interfaces at boundaries or where more than one implementation
-  exists. Keep construction (wiring, factories, injection) separate from runtime
-  logic.
+- In object-oriented languages, a class is one way to define a type. Do not add object-oriented concepts only because the type is a class. Do not add hierarchies, data hiding, state, or variance rules without a need.
+- Do not use concrete inheritance. Object-oriented languages mix types, interfaces, code reuse, and taxonomies. Only taxonomies need concrete inheritance. Use it when the domain has a real and stable taxonomy. In other cases, it is usually a fragile and unnecessary abstraction.
+- A class can be many things: a type, a hierarchy, a closure, the shared behavior of an interface, or an abstract base class. Give each class one role.
+- Depend on interfaces at boundaries, or where more than one implementation exists. Keep construction (wiring, factories, injection) separate from the runtime logic.
 
 
 ## Boundaries
 
-- Wrap non-core third-party APIs in an interface shaped to your needs. Don't let
-  external types spread through your code: the wrapper is where you absorb
-  their churn.
-- Apply a similar rule to transport and persistence layers (APIs, databases):
-  design the core types first, derive a DTO for each boundary from them, and
-  don't let DTOs spread to the core of your application.
-- If you use a framework or library that is core to your application, adopt its
-  conventions and nomenclature.
+- Wrap third-party APIs that are not central to your code in an interface that fits your needs. Do not let external types spread through the code. The wrapper is the place where you absorb their changes.
+- Apply a similar rule to the transport and persistence layers (APIs, databases). Design the core types first. Derive one DTO for each boundary from them. Do not let DTOs go into the core of the application.
+- If you use a framework or a library that is central to the application, use its conventions and its names.
 
 
-## Refactoring and evolution
+## Refactoring and change
 
-When refactoring, fixing bugs, or tweaking:
+When you refactor, fix bugs, or change code:
 
-- Breaking public APIs in library code is expensive. Prefer additive changes and
-  deprecations.
-- Breaking private or internal APIs in typed codebases can be cheap. If the
-  blast radius is small, you can refactor aggressively. Large blast radii
-  require planning, but the refactor might still be worth it.
+- A change that breaks the public API of a library is expensive. Prefer additions and deprecations.
+- A change that breaks private or internal APIs in a typed codebase can be cheap. If the change affects a small area, you can refactor aggressively. A change that affects a large area needs a plan, but it can still be worth the cost.
 
 
 ## Simple design
 
-The design is good enough when, in this priority order, it:
+The design is good enough when it does these things, in this order of priority:
 
-1. Passes all its tests.
-2. Expresses the author's intent.
-3. Uses no more code than it needs.
+1. It passes all its tests.
+2. It shows the intent of the author.
+3. It uses no more code than necessary.
 
-**Boy Scout Rule:** leave the code you change slightly cleaner than you found
-it. Do it incrementally, in the course of other work, not as a separate cleanup
-project.
+**The Boy Scout rule:** leave the code that you change a bit cleaner than before. Do this in small steps, during other work, not as a separate cleanup project.
