@@ -43,6 +43,11 @@ Work through [reference/checklist.md](reference/checklist.md) item by item. For
 each item, record pass, fail, or not applicable, and for every fail quote the
 offending line and state the replacement.
 
+Then check the prose against the writing rules for the skill's language:
+[reference/writing-en.md](reference/writing-en.md) for English,
+[reference/escrita-pt-br.md](reference/escrita-pt-br.md) for Portuguese. Report
+each broken rule once, with one quoted example and its rewrite.
+
 **Step 4: Draft evaluation scenarios**
 
 If the frontmatter does not contain `disable-model-invocation: false`, consider
